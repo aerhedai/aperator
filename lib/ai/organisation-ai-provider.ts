@@ -1,6 +1,7 @@
 import type { AIProvider } from "@/lib/ai/provider";
 import { GeminiProvider } from "@/lib/ai/providers/gemini-provider";
 import { OllamaProvider } from "@/lib/ai/providers/ollama-provider";
+import { OpenRouterProvider } from "@/lib/ai/providers/openrouter-provider";
 import * as integrationRepository from "@/lib/integrations/integration-repository";
 import * as integrationService from "@/lib/integrations/integration-service";
 import * as organisationRepository from "@/lib/organisations/organisation-repository";
@@ -8,13 +9,17 @@ import * as organisationRepository from "@/lib/organisations/organisation-reposi
 // An AI provider connection is a Connection like any other (CLAUDE.md
 // §4.1) — an authenticated link to an external system, owned by one
 // organisation — so each is stored as an ordinary Integration rather than
-// a bespoke table. Both can be connected at once: switching which is
-// active (below) doesn't discard the other's credentials, so toggling back
-// costs nothing. Adding a third provider is another constant and another
-// thin *ProviderInput/set*Provider pair here, not a new storage model.
+// a bespoke table. All three can be connected at once: switching which is
+// active (below) doesn't discard the others' credentials, so toggling back
+// costs nothing. Adding a fourth provider is another constant and another
+// thin *ProviderInput/set*Provider pair here, not a new storage model —
+// proven twice now, first by Gemini, then by OpenRouter reusing the exact
+// same shape.
 export const OLLAMA_PROVIDER = "ollama";
 export const GEMINI_PROVIDER = "gemini";
-export type AIProviderKind = typeof OLLAMA_PROVIDER | typeof GEMINI_PROVIDER;
+export const OPENROUTER_PROVIDER = "openrouter";
+export type AIProviderKind =
+  typeof OLLAMA_PROVIDER | typeof GEMINI_PROVIDER | typeof OPENROUTER_PROVIDER;
 
 // Only one connection per provider makes sense per organisation today —
 // unlike Gmail/Slack, there's no "which one of several" concept yet (no
@@ -45,24 +50,31 @@ export interface GeminiProviderInput {
   apiKey?: string;
 }
 
+export interface OpenRouterProviderInput {
+  // Same undefined-means-unchanged convention as GeminiProviderInput.
+  apiKey?: string;
+}
+
 export interface OrganisationAIConnection {
   connectedAt: Date;
   // Ollama-only, and deliberately shown: unlike an API key, a base URL
   // isn't secret, and seeing which host is currently configured is
   // genuinely useful before deciding whether to reconnect it. Undefined
-  // for Gemini — an API key has nothing non-secret worth surfacing.
+  // for Gemini and OpenRouter — an API key has nothing non-secret worth
+  // surfacing.
   baseUrl?: string;
 }
 
 /**
  * Every provider this organisation could be running on, in one call — what
- * Settings needs to render both cards and show which is active without a
- * caller stitching several lookups together itself.
+ * Settings needs to render all three cards and show which is active
+ * without a caller stitching several lookups together itself.
  */
 export interface AIProviderStatus {
   active: AIProviderKind;
   ollama: OrganisationAIConnection | null;
   gemini: OrganisationAIConnection | null;
+  openrouter: OrganisationAIConnection | null;
 }
 
 /**
@@ -138,6 +150,36 @@ export async function setGeminiProvider(
   );
 }
 
+export async function setOpenRouterProvider(
+  organisationId: string,
+  input: OpenRouterProviderInput,
+): Promise<void> {
+  let apiKey: string | null;
+  if (input.apiKey === undefined) {
+    const existing = await integrationService.getDefaultIntegrationByProvider(
+      organisationId,
+      OPENROUTER_PROVIDER,
+    );
+    const existingKey = existing?.credentials?.apiKey;
+    apiKey = typeof existingKey === "string" ? existingKey : null;
+  } else {
+    apiKey = input.apiKey === "" ? null : input.apiKey;
+  }
+  if (!apiKey) {
+    throw new Error("An API key is required to connect OpenRouter.");
+  }
+
+  await integrationRepository.upsertIntegration(
+    organisationId,
+    OPENROUTER_PROVIDER,
+    CONNECTION_NAME,
+    {
+      config: {},
+      credentials: { apiKey },
+    },
+  );
+}
+
 export async function disconnectProvider(
   organisationId: string,
   provider: AIProviderKind,
@@ -160,9 +202,15 @@ export async function disconnectProvider(
 function resolveActiveProviderKind(
   activeAiProvider: string | null,
 ): AIProviderKind {
-  return activeAiProvider === GEMINI_PROVIDER
-    ? GEMINI_PROVIDER
-    : OLLAMA_PROVIDER;
+  if (activeAiProvider === GEMINI_PROVIDER) return GEMINI_PROVIDER;
+  if (activeAiProvider === OPENROUTER_PROVIDER) return OPENROUTER_PROVIDER;
+  return OLLAMA_PROVIDER;
+}
+
+function providerLabel(provider: AIProviderKind): string {
+  if (provider === GEMINI_PROVIDER) return "Gemini";
+  if (provider === OPENROUTER_PROVIDER) return "OpenRouter";
+  return "Ollama";
 }
 
 /**
@@ -180,7 +228,7 @@ export async function setActiveProvider(
   );
   if (!integration) {
     throw new Error(
-      `Connect ${provider === GEMINI_PROVIDER ? "Gemini" : "Ollama"} first, then make it active.`,
+      `Connect ${providerLabel(provider)} first, then make it active.`,
     );
   }
   await organisationRepository.setActiveAiProvider(organisationId, provider);
@@ -195,7 +243,7 @@ export async function getAIProviderStatus(
   organisationId: string,
   activeAiProvider: string | null,
 ): Promise<AIProviderStatus> {
-  const [ollama, gemini] = await Promise.all([
+  const [ollama, gemini, openrouter] = await Promise.all([
     integrationService.getDefaultIntegrationByProvider(
       organisationId,
       OLLAMA_PROVIDER,
@@ -203,6 +251,10 @@ export async function getAIProviderStatus(
     integrationService.getDefaultIntegrationByProvider(
       organisationId,
       GEMINI_PROVIDER,
+    ),
+    integrationService.getDefaultIntegrationByProvider(
+      organisationId,
+      OPENROUTER_PROVIDER,
     ),
   ]);
   const ollamaBaseUrl = ollama?.credentials?.baseUrl;
@@ -215,6 +267,7 @@ export async function getAIProviderStatus(
         }
       : null,
     gemini: gemini ? { connectedAt: gemini.updatedAt } : null,
+    openrouter: openrouter ? { connectedAt: openrouter.updatedAt } : null,
   };
 }
 
@@ -249,6 +302,14 @@ export async function getAIProvider(
       throw new AIProviderNotConfiguredError();
     }
     return new GeminiProvider(apiKey);
+  }
+
+  if (activeProvider === OPENROUTER_PROVIDER) {
+    const apiKey = integration.credentials?.apiKey;
+    if (typeof apiKey !== "string") {
+      throw new AIProviderNotConfiguredError();
+    }
+    return new OpenRouterProvider(apiKey);
   }
 
   const baseUrl = integration.credentials?.baseUrl;

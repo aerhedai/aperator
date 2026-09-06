@@ -99,7 +99,12 @@ export const BUILT_IN_TEMPLATES: BuiltInTemplate[] = [
           kind: "lookup",
           as: "item",
           recordType: "Product",
-          match: { by: "search", query: "{product}" },
+          // first: true — the compute step below needs a single record
+          // ({item.data.unitPrice}), not the array a plain search binds.
+          // Without it this step ran, found the product, and then failed
+          // at compute with "not a number", since resolvePath() refuses to
+          // index into an array by design (see values.ts).
+          match: { by: "search", query: "{product}", first: true },
           required: true,
         },
         {

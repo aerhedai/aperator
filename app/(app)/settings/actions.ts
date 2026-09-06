@@ -216,6 +216,28 @@ export async function saveGeminiProviderAction(
   return { saved: true };
 }
 
+export async function saveOpenRouterProviderAction(
+  _prevState: AIProviderFormState,
+  formData: FormData,
+): Promise<AIProviderFormState> {
+  const apiKeyRaw = formData.get("apiKey");
+  const apiKey =
+    typeof apiKeyRaw === "string" && apiKeyRaw.trim().length > 0
+      ? apiKeyRaw.trim()
+      : undefined;
+
+  const organisation = await getCurrentOrganisation();
+  try {
+    await aiProviderService.setOpenRouterProvider(organisation.id, { apiKey });
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Couldn't save this.",
+    };
+  }
+  revalidatePath("/settings/ai-provider");
+  return { saved: true };
+}
+
 export async function disconnectProviderAction(
   provider: aiProviderService.AIProviderKind,
 ) {

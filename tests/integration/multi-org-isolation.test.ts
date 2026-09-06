@@ -71,6 +71,13 @@ describe("multi-org catalog isolation", () => {
   });
 
   it("keeps two organisations' catalog, currency, and sign-off fully isolated", async () => {
+    // Genuinely heavy: two full org provisions (each its own workflow + 4
+    // agents) plus two real runHarnessPipeline calls, all against real
+    // Postgres — measured ~4.2s alone, close enough to Vitest's 5s default
+    // that it (and other unrelated heavy tests) intermittently timed out
+    // under full-suite load. See vitest.config.ts's testTimeout for the
+    // actual fix; this comment just explains why this specific test is
+    // one of the heavier ones.
     await prisma.organisation.create({
       data: { id: orgAId, clerkOrgId: orgAId, name: "Acme Test Co" },
     });
@@ -194,5 +201,5 @@ describe("multi-org catalog isolation", () => {
     expect(approvalB?.proposedInput).toMatchObject({
       to: "buyer@northwind-test.local",
     });
-  });
+  }, 20000);
 });

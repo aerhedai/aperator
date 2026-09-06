@@ -19,8 +19,8 @@ export default async function AIProviderSettingsPage() {
           Every agent run in this organisation calls whichever provider is
           active below — nothing runs until one is connected and active. This is
           scoped to your organisation only: no other business on this platform
-          can reach it. Both can stay connected at once; switching which is
-          active doesn&rsquo;t discard the other&rsquo;s credentials.
+          can reach it. All three can stay connected at once; switching which is
+          active doesn&rsquo;t discard the others&rsquo; credentials.
         </p>
       </div>
 

@@ -8,9 +8,11 @@ import {
   setActiveProvider,
   setGeminiProvider,
   setOllamaProvider,
+  setOpenRouterProvider,
 } from "@/lib/ai/organisation-ai-provider";
 import { GeminiProvider } from "@/lib/ai/providers/gemini-provider";
 import { OllamaProvider } from "@/lib/ai/providers/ollama-provider";
+import { OpenRouterProvider } from "@/lib/ai/providers/openrouter-provider";
 import { prisma } from "@/lib/db/prisma";
 
 // Every organisation used to share one operator-configured Ollama instance
@@ -264,6 +266,81 @@ describe("organisation-scoped AI provider", () => {
 
       const status = await getAIProviderStatus(organisationId, null);
       expect(status.gemini).toBeNull();
+      expect(status.ollama).not.toBeNull();
+    });
+  });
+
+  describe("OpenRouter", () => {
+    it("returns a real OpenRouterProvider once connected and made active", async () => {
+      await setOpenRouterProvider(organisationId, { apiKey: "real-key" });
+      await setActiveProvider(organisationId, "openrouter");
+
+      const organisation = await prisma.organisation.findUniqueOrThrow({
+        where: { id: organisationId },
+      });
+      expect(organisation.activeAiProvider).toBe("openrouter");
+
+      const provider = await getAIProvider(organisationId);
+      expect(provider).toBeInstanceOf(OpenRouterProvider);
+    });
+
+    it("refuses to activate a provider with nothing connected", async () => {
+      await expect(
+        setActiveProvider(organisationId, "openrouter"),
+      ).rejects.toThrow(/connect openrouter first/i);
+    });
+
+    it("connecting OpenRouter requires a real key, not an empty one", async () => {
+      await expect(
+        setOpenRouterProvider(organisationId, { apiKey: "" }),
+      ).rejects.toThrow(/api key is required/i);
+    });
+
+    it("omitting apiKey on a resave preserves the existing one", async () => {
+      await setOpenRouterProvider(organisationId, { apiKey: "original-key" });
+      await setOpenRouterProvider(organisationId, {});
+
+      const row = await prisma.integration.findFirstOrThrow({
+        where: { organisationId, provider: "openrouter" },
+      });
+      const { decryptToken } = await import("@/lib/crypto/token-cipher");
+      const stored = JSON.parse(decryptToken(row.credentials!)) as {
+        apiKey: string;
+      };
+      expect(stored.apiKey).toBe("original-key");
+    });
+
+    it("all three providers stay independently connected regardless of which is active", async () => {
+      // The whole reason each provider stores its own credentials rather
+      // than one being replaced by the next: switching around (Ollama's
+      // host down, try Gemini, Gemini's rate-limited, try OpenRouter, host
+      // comes back) must never mean re-entering something already entered.
+      await setOllamaProvider(organisationId, {
+        baseUrl: "https://ollama.example.test",
+      });
+      await setGeminiProvider(organisationId, { apiKey: "gemini-key" });
+      await setOpenRouterProvider(organisationId, { apiKey: "or-key" });
+
+      for (const provider of ["gemini", "openrouter", "ollama"] as const) {
+        await setActiveProvider(organisationId, provider);
+        const status = await getAIProviderStatus(organisationId, provider);
+        expect(status.active).toBe(provider);
+        expect(status.ollama).not.toBeNull();
+        expect(status.gemini).not.toBeNull();
+        expect(status.openrouter).not.toBeNull();
+      }
+    });
+
+    it("disconnecting OpenRouter clears only OpenRouter's connection", async () => {
+      await setOllamaProvider(organisationId, {
+        baseUrl: "https://ollama.example.test",
+      });
+      await setOpenRouterProvider(organisationId, { apiKey: "real-key" });
+
+      await disconnectProvider(organisationId, "openrouter");
+
+      const status = await getAIProviderStatus(organisationId, null);
+      expect(status.openrouter).toBeNull();
       expect(status.ollama).not.toBeNull();
     });
   });

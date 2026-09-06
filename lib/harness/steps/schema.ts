@@ -108,7 +108,20 @@ const lookupStepSchema = z.object({
       field: z.string().trim().min(1),
       value: operandSchema,
     }),
-    z.object({ by: z.literal("search"), query: operandSchema }),
+    z.object({
+      by: z.literal("search"),
+      query: operandSchema,
+      // A search naturally returns candidates, not one answer — {as} binds
+      // to the whole array by default, for an aggregate compute step to
+      // run over (asList() in values.ts). Set true when the step instead
+      // wants THE record a fuzzy match found — a quote calculating off
+      // {item.data.unitPrice} needs a single object, not a list, and
+      // resolvePath() deliberately refuses to index into an array (a path
+      // hitting one always resolves to undefined, by design — see its own
+      // comment). Binds to the top result, or null if none, the same
+      // shape a by:"field" lookup already produces.
+      first: z.boolean().default(false),
+    }),
   ]),
   // Per-step, because "must exist" and "nice to have" are genuinely
   // different: a quote needs its product, a reply only optionally knows
