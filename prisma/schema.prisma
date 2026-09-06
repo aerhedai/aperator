@@ -112,8 +112,25 @@ model Organisation {
   // Null means "not set yet."
   termsUrl   String?
   privacyUrl String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  // Which connected AI provider Integration ("ollama" or "gemini") every
+  // agent run in this org actually calls — see
+  // lib/ai/organisation-ai-provider.ts. Plain string, not an enum, same
+  // reasoning as currency/Integration.provider: a third provider should
+  // never need a migration. Null means "not chosen yet" for a fresh org,
+  // or implicitly "ollama" for every org that predates this column, since
+  // Ollama was the only provider before it existed and nothing about an
+  // existing connection should change under it.
+  //
+  // A separate column rather than "whichever Integration row is newest"
+  // deliberately: unlike picking a default email account, silently
+  // guessing which paid API an organisation is currently being billed
+  // through is exactly the kind of half-configured state CLAUDE.md §14
+  // says must be surfaced, not inferred. Both providers' credentials are
+  // kept — connecting Gemini doesn't discard a working Ollama connection —
+  // this only decides which one is live.
+  activeAiProvider String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   users               User[]
   agents              Agent[]

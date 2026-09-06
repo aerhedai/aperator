@@ -144,24 +144,62 @@ async function runLeafStep(
     }
 
     case "lookup": {
-      // Switched on the discriminant rather than a boolean alias so
-      // TypeScript narrows `match` to the right arm in each branch.
-      const isSearch = step.match.by === "search";
+      // Every access to step.match.query/.value/.field below is gated by
+      // an inline `step.match.by === "search"` check, not a boolean alias
+      // — TypeScript only narrows the union on the literal discriminant
+      // check itself, not on a variable that merely holds its result.
+      const resolvedValue = String(
+        (step.match.by === "search"
+          ? resolveOperand(step.match.query, store)
+          : resolveOperand(step.match.value, store)) ?? "",
+      ).trim();
+
+      // The key to look up resolved to nothing — most commonly {senderEmail}
+      // on a manually triggered run (via the "Run agent" test box, or any
+      // future trigger with no real sender), where context.senderEmail is
+      // "" rather than a real address. Found live testing the built-in
+      // "Look up and quote" template exactly this way: its optional
+      // customer lookup sent an empty string to find_record, which
+      // rejected it as invalid input — a hard failure for a step marked
+      // required: false, on the platform's own flagship template, hit by
+      // the most ordinary way of testing it.
+      //
+      // For an optional lookup this is functionally identical to "not
+      // found": there was nothing to search for, so nothing can be found.
+      // Short-circuited before ever calling the tool, rather than letting
+      // an empty value reach it and rejecting on the tool's own input
+      // schema — that produces a raw validation error, not this step's own
+      // clear "found nothing" outcome. A required lookup still fails, but
+      // with a message naming the actual problem instead of an opaque
+      // schema error.
+      if (resolvedValue === "") {
+        if (!step.required) {
+          store[step.as] = step.match.by === "search" ? [] : null;
+          return { done: false };
+        }
+        return {
+          done: true,
+          result: await failPipeline(
+            context,
+            `The ${step.recordType} lookup had nothing to look up with — its ${
+              step.match.by === "search" ? "query" : `"${step.match.field}"`
+            } resolved to an empty value.`,
+          ),
+        };
+      }
+
       const { toolName, args } =
         step.match.by === "search"
           ? {
               toolName: "search_records",
-              args: {
-                recordType: step.recordType,
-                query: String(resolveOperand(step.match.query, store) ?? ""),
-              },
+              args: { recordType: step.recordType, query: resolvedValue },
             }
           : {
               toolName: "find_record",
               args: {
                 recordType: step.recordType,
                 field: step.match.field,
-                value: String(resolveOperand(step.match.value, store) ?? ""),
+                value: resolvedValue,
               },
             };
 
@@ -180,6 +218,7 @@ async function runLeafStep(
         };
       }
 
+      const isSearch = step.match.by === "search";
       const found = isSearch
         ? ((result.structuredContent?.records as unknown[] | undefined) ?? [])
         : (result.structuredContent?.record ?? null);
@@ -202,7 +241,10 @@ async function runLeafStep(
       // branch can test it with `exists` — the "configurable per step"
       // behaviour, rather than every optional lookup needing a branch
       // wrapped around it.
-      store[step.as] = found;
+      store[step.as] =
+        step.match.by === "search" && step.match.first
+          ? ((found as unknown[])[0] ?? null)
+          : found;
       return { done: false };
     }
 

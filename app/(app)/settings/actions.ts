@@ -159,15 +159,15 @@ export async function deleteOrganisationAction(
   redirect("/select-organisation");
 }
 
-export type OllamaProviderFormState = {
+export type AIProviderFormState = {
   error?: string;
   saved?: boolean;
 };
 
 export async function saveOllamaProviderAction(
-  _prevState: OllamaProviderFormState,
+  _prevState: AIProviderFormState,
   formData: FormData,
-): Promise<OllamaProviderFormState> {
+): Promise<AIProviderFormState> {
   const baseUrl = formData.get("baseUrl");
   if (typeof baseUrl !== "string" || baseUrl.trim().length === 0) {
     return { error: "Base URL is required." };
@@ -194,8 +194,67 @@ export async function saveOllamaProviderAction(
   return { saved: true };
 }
 
-export async function disconnectAIProviderAction() {
+export async function saveGeminiProviderAction(
+  _prevState: AIProviderFormState,
+  formData: FormData,
+): Promise<AIProviderFormState> {
+  const apiKeyRaw = formData.get("apiKey");
+  const apiKey =
+    typeof apiKeyRaw === "string" && apiKeyRaw.trim().length > 0
+      ? apiKeyRaw.trim()
+      : undefined;
+
   const organisation = await getCurrentOrganisation();
-  await aiProviderService.disconnectAIProvider(organisation.id);
+  try {
+    await aiProviderService.setGeminiProvider(organisation.id, { apiKey });
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Couldn't save this.",
+    };
+  }
+  revalidatePath("/settings/ai-provider");
+  return { saved: true };
+}
+
+export async function saveOpenRouterProviderAction(
+  _prevState: AIProviderFormState,
+  formData: FormData,
+): Promise<AIProviderFormState> {
+  const apiKeyRaw = formData.get("apiKey");
+  const apiKey =
+    typeof apiKeyRaw === "string" && apiKeyRaw.trim().length > 0
+      ? apiKeyRaw.trim()
+      : undefined;
+
+  const organisation = await getCurrentOrganisation();
+  try {
+    await aiProviderService.setOpenRouterProvider(organisation.id, { apiKey });
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Couldn't save this.",
+    };
+  }
+  revalidatePath("/settings/ai-provider");
+  return { saved: true };
+}
+
+export async function disconnectProviderAction(
+  provider: aiProviderService.AIProviderKind,
+) {
+  const organisation = await getCurrentOrganisation();
+  await aiProviderService.disconnectProvider(organisation.id, provider);
+  revalidatePath("/settings/ai-provider");
+}
+
+export async function setActiveProviderAction(
+  provider: aiProviderService.AIProviderKind,
+) {
+  const organisation = await getCurrentOrganisation();
+  // Errors here (nothing connected for this provider yet) are deliberately
+  // allowed to throw rather than fail silently — this is a plain <form>
+  // action with no useActionState wired up, so there's no field to render
+  // an error into; Next's own error boundary is the right place for a
+  // "you clicked something that isn't valid right now" case this narrow.
+  await aiProviderService.setActiveProvider(organisation.id, provider);
   revalidatePath("/settings/ai-provider");
 }

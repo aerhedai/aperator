@@ -44,6 +44,84 @@ agents already in production that write partial records. The Catalog form
 still enforces required on the human path. Tightening the agent path is a
 separate decision, not a side effect of this one.
 
+## Gemini as an alternative AI provider (closed)
+
+Added directly because of a real production incident: `rohan-pc` (the only
+Ollama host) rebooted, and two real agent runs failed with `fetch failed`
+in the ~90-second window before its auto-start scheduled tasks brought
+Ollama and its auth proxy back up. Traced with SSH access to the host
+itself — `LastBootUpTime`, both scheduled tasks' boot-trigger timestamps,
+and the two failed runs' timing all lined up within seconds.
+
+Gemini 2.5 Flash-Lite is now a second connectable provider
+(`lib/ai/providers/gemini-provider.ts`), independent of Ollama being up at
+all. An organisation can hold both connections at once and switch which is
+active in Settings → AI Provider (`Organisation.activeAiProvider`) without
+re-entering either's credentials — the actual point, since the realistic
+usage is toggling based on whether the home PC happens to be up, not a
+one-time migration.
+
+**Known, accepted gap:** switching active provider does not touch existing
+agents' `Model` field. An agent still set to `qwen2.5:14b` fails every run
+if the org switches to Gemini active without also updating it to
+`gemini-2.5-flash-lite`. The Gemini connect form says this explicitly.
+Automatic model-name translation was considered and rejected — Ollama and
+Gemini's model catalogs don't correspond 1:1, so a translation table would
+itself need maintaining as models come and go on both sides, for a
+one-time manual edit per agent that isn't expensive to just do.
+
+**Deprecation risk accepted knowingly:** Gemini 2.5 Flash-Lite's
+retirement date is Google's own "no earlier than October 16, 2026, not
+final" as of when this was built. The model name lives on each agent's
+free-string `Model` field, the same mechanism Ollama already used — moving
+to `gemini-3.1-flash-lite` when forced is an edit to that field, not a
+code change.
+
+**Real gap, not implemented:** `GeminiProvider.generateEmbedding`. The
+knowledge base's pgvector column is a fixed `vector(768)` matching
+`nomic-embed-text`; Gemini's embedding models default to a different
+dimensionality, and silently mismatching that would corrupt retrieval
+rather than fail loudly, so it was left out entirely rather than guessed
+at.
+
+The consequence is bigger than "no Gemini embeddings" — there is exactly
+one _active_ provider per organisation, used for every call including
+embeddings, not a per-capability choice. Switching active to Gemini breaks
+`search_knowledge` and every `retrieve` step outright (both call
+`knowledgeService.search` with its default `"hybrid"` strategy, which
+always embeds the query) — it fails loudly with `EmbeddingUnavailableError`,
+never silently, but an "Answer from your documented knowledge" agent stops
+working the moment Gemini becomes active, not just embeddings generation
+in the abstract. Only `strategy: "keyword"` search is unaffected, and
+nothing in the product surfaces that as a fallback today. Switch back to
+Ollama to restore knowledge search, same as before switching.
+
+## OpenRouter as a third AI provider (closed)
+
+Added for the same reason as Gemini: another provider an organisation can
+connect independently, this time to reach hosted models Ollama/Gemini
+don't offer (tested live against `upstage/solar-pro4`). Follows the exact
+Gemini pattern — `lib/ai/providers/openrouter-provider.ts`,
+`Organisation.activeAiProvider` gains a third value, all three can stay
+connected at once, `resolveActiveProviderKind()` checks Gemini then
+OpenRouter then defaults to Ollama.
+
+Wire format is OpenAI-compatible `chat/completions`, closer to this
+codebase's own `AIMessage` shape than Gemini's — the one real gotcha is
+that tool call `arguments` travel as a **JSON string** in both directions
+(the opposite of Ollama's object-based convention), parsed back with a
+fallback to `{}` on malformed JSON rather than crashing a run. No
+`generateEmbedding`, same reasoning as Gemini: nothing here forces a
+specific embedding dimensionality, but adding one without pinning it to
+the existing `vector(768)` column would risk silently corrupting
+retrieval rather than failing loudly, so it's left unimplemented instead
+of guessed at.
+
+**Known gap, same as Gemini's:** switching active provider doesn't touch
+existing agents' `Model` field — an agent still set to an Ollama or
+Gemini model name fails every run until manually updated to an
+OpenRouter model id.
+
 ## Gmail OAuth tokens encrypted at rest (Phase B — closed)
 
 `Integration.accessToken` / `Integration.refreshToken` were stored as plain

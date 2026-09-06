@@ -75,7 +75,11 @@ Production:   https://aperator.com   (Vercel, auto-deploys from `main`)
 Database:     Neon Postgres          (`main` branch = production)
                                      (`preview-dev` branch = preview/dev)
 Auth:         Clerk Production instance, multi-tenant via Clerk Orgs
-AI:           Ollama via an auth-gated Tailscale proxy (a documented stopgap)
+AI:           Per-organisation choice of Ollama (via an auth-gated
+                                     Tailscale proxy — still a documented stopgap)
+                                     or Gemini (hosted). Ollama remains the
+                                     implicit default for every org that
+                                     predates this choice.
 ```
 
 Built and working: organisations/users, agents, workflows (classifier +
@@ -523,11 +527,17 @@ A fuller redesign of agent creation (steps as data, replacing the fixed
 
 ## AI
 
-Model providers sit behind `AIProvider` (`lib/ai/`). Ollama is the
-current implementation, reached in production through an auth-gated
-proxy — a documented stopgap, not the final answer. Swapping to a hosted
-commercial API is architecturally trivial by design. Never scatter
-provider-specific SDK calls through the application.
+Model providers sit behind `AIProvider` (`lib/ai/`). Ollama, reached in
+production through an auth-gated proxy — a documented stopgap, not the
+final answer — and Gemini, a hosted commercial API, are both real
+implementations now, each an organisation connects independently in
+Settings → AI Provider and switches between without losing the other's
+credentials. Confirms the abstraction was right: adding Gemini was one new
+class plus a translation layer for its wire format
+(`lib/ai/providers/gemini-message-mapping.ts`), nothing above `AIProvider`
+changed. Never scatter provider-specific SDK calls through the
+application — both providers talk to their APIs over plain `fetch`, no
+SDK dependency.
 
 ## Development
 

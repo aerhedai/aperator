@@ -22,6 +22,18 @@ export function updateLegalLinks(id: string, input: LegalLinksInput) {
   });
 }
 
+// Separate from updateOrganisation/OrganisationInput deliberately: this
+// isn't filled in through the general org-settings form the way
+// name/currency are, it's set by a dedicated "make this provider active"
+// action (lib/ai/organisation-ai-provider.ts), so it doesn't belong in
+// that schema's shape.
+export function setActiveAiProvider(id: string, activeAiProvider: string) {
+  return prisma.organisation.update({
+    where: { id },
+    data: { activeAiProvider },
+  });
+}
+
 // No relation on Organisation declares onDelete: Cascade (a business
 // deleting one row of catalog data should never silently take the whole
 // org with it), so a real org deletion has to remove every dependent row

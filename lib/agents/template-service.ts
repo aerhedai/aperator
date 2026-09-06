@@ -22,17 +22,25 @@ export interface TemplateSummary {
 export async function listTemplates(
   organisationId: string,
 ): Promise<TemplateSummary[]> {
-  // Seeded on first read rather than by migration or at boot: the
+  // Seeded on every read rather than by migration or at boot: the
   // definitions live in code (built-in-templates.ts), so a migration would
-  // drift from them the moment one changed. Same lazy-provisioning shape
-  // getCurrentOrganisation already uses, and idempotent — seedBuiltInTemplates
-  // matches on name, so this converges rather than duplicating.
-  const builtInCount = await prisma.agentTemplate.count({
-    where: { organisationId: null },
-  });
-  if (builtInCount < BUILT_IN_TEMPLATES.length) {
-    await seedBuiltInTemplates();
-  }
+  // drift from them the moment one changed. seedBuiltInTemplates matches on
+  // name and updates in place, so this converges rather than duplicating —
+  // that's also why it has to run unconditionally rather than only when a
+  // template is missing.
+  //
+  // A count-based guard used to skip this once every built-in template
+  // already existed, which quietly broke the "updates the shipped
+  // definition in place" promise the moment a template's *content* changed
+  // post-launch rather than one being newly added: production already has
+  // all 4 rows, so the count check would never fire again, and a real fix
+  // to a template (e.g. the quote template's lookup shape) would never
+  // reach it — with no direct way to force a reseed there, unlike local
+  // dev. Running this every time an agent is created or edited is cheap —
+  // a handful of indexed queries on a page that's already doing several —
+  // and it's the only way a template content fix ever reaches a database
+  // this code doesn't have direct access to.
+  await seedBuiltInTemplates();
 
   const rows = await prisma.agentTemplate.findMany({
     where: { OR: [{ organisationId: null }, { organisationId }] },

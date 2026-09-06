@@ -92,6 +92,35 @@ describe("agent templates", () => {
     expect(second).toBe(first);
   });
 
+  it("refreshes a built-in template's content on every list call, even once the count already matches", async () => {
+    // Real bug this closes: seeding used to be gated on row *count*
+    // ("does every built-in exist"), not content. Production already has
+    // all of them, so a fix to a template's actual steps — e.g. the quote
+    // template's lookup shape — would never reach it: the count would
+    // stay satisfied forever and the stale, buggy row would never update,
+    // with no way to force it there directly the way a local reseed can.
+    await templateService.listTemplates(organisationId);
+    const quoteTemplate = BUILT_IN_TEMPLATES.find((t) => t.key === "quote")!;
+    const row = await prisma.agentTemplate.findFirstOrThrow({
+      where: { organisationId: null, name: quoteTemplate.name },
+    });
+
+    // Simulate a row seeded before a template's definition changed —
+    // exactly production's situation for any content fix shipped after
+    // launch, not just this test's synthetic corruption.
+    await prisma.agentTemplate.update({
+      where: { id: row.id },
+      data: { steps: { steps: [] } },
+    });
+
+    await templateService.listTemplates(organisationId);
+
+    const refreshed = await prisma.agentTemplate.findUniqueOrThrow({
+      where: { id: row.id },
+    });
+    expect(refreshed.steps).toEqual(quoteTemplate.steps);
+  });
+
   it("shows a business its own templates alongside the built-ins", async () => {
     await templateService.saveTemplate(organisationId, {
       name: "Our own process",
