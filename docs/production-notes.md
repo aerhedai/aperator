@@ -96,6 +96,32 @@ in the abstract. Only `strategy: "keyword"` search is unaffected, and
 nothing in the product surfaces that as a fallback today. Switch back to
 Ollama to restore knowledge search, same as before switching.
 
+## OpenRouter as a third AI provider (closed)
+
+Added for the same reason as Gemini: another provider an organisation can
+connect independently, this time to reach hosted models Ollama/Gemini
+don't offer (tested live against `upstage/solar-pro4`). Follows the exact
+Gemini pattern — `lib/ai/providers/openrouter-provider.ts`,
+`Organisation.activeAiProvider` gains a third value, all three can stay
+connected at once, `resolveActiveProviderKind()` checks Gemini then
+OpenRouter then defaults to Ollama.
+
+Wire format is OpenAI-compatible `chat/completions`, closer to this
+codebase's own `AIMessage` shape than Gemini's — the one real gotcha is
+that tool call `arguments` travel as a **JSON string** in both directions
+(the opposite of Ollama's object-based convention), parsed back with a
+fallback to `{}` on malformed JSON rather than crashing a run. No
+`generateEmbedding`, same reasoning as Gemini: nothing here forces a
+specific embedding dimensionality, but adding one without pinning it to
+the existing `vector(768)` column would risk silently corrupting
+retrieval rather than failing loudly, so it's left unimplemented instead
+of guessed at.
+
+**Known gap, same as Gemini's:** switching active provider doesn't touch
+existing agents' `Model` field — an agent still set to an Ollama or
+Gemini model name fails every run until manually updated to an
+OpenRouter model id.
+
 ## Gmail OAuth tokens encrypted at rest (Phase B — closed)
 
 `Integration.accessToken` / `Integration.refreshToken` were stored as plain

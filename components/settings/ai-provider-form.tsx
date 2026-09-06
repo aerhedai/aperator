@@ -7,6 +7,7 @@ import {
   disconnectProviderAction,
   saveGeminiProviderAction,
   saveOllamaProviderAction,
+  saveOpenRouterProviderAction,
   setActiveProviderAction,
   type AIProviderFormState,
 } from "@/app/(app)/settings/actions";
@@ -202,9 +203,9 @@ export function AIProviderForm({ status }: { status: AIProviderStatus }) {
         saveAction={saveGeminiProviderAction}
         fields={
           <div className="flex flex-col gap-2">
-            <Label htmlFor="apiKey">API key</Label>
+            <Label htmlFor="gemini-apiKey">API key</Label>
             <Input
-              id="apiKey"
+              id="gemini-apiKey"
               name="apiKey"
               type="password"
               placeholder={
@@ -219,6 +220,38 @@ export function AIProviderForm({ status }: { status: AIProviderStatus }) {
               <span className="font-mono">gemini-2.5-flash-lite</span>) before
               making this active — an agent still set to an Ollama model name
               will fail every run against Gemini.
+            </p>
+          </div>
+        }
+      />
+
+      <ProviderCard
+        title="OpenRouter"
+        description="One hosted API key, hundreds of models from many providers. No machine to keep running — a run here doesn't depend on anything at your end being online."
+        kind="openrouter"
+        connectedAt={status.openrouter?.connectedAt ?? null}
+        isActive={status.active === "openrouter"}
+        saveAction={saveOpenRouterProviderAction}
+        fields={
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="openrouter-apiKey">API key</Label>
+            <Input
+              id="openrouter-apiKey"
+              name="apiKey"
+              type="password"
+              placeholder={
+                status.openrouter ? "Unchanged — leave blank to keep it" : ""
+              }
+              autoComplete="off"
+              required={!status.openrouter}
+            />
+            <p className="text-xs text-muted-foreground">
+              From <span className="font-mono">openrouter.ai/keys</span>. Set
+              each agent&rsquo;s Model field to the exact OpenRouter model id
+              (e.g. <span className="font-mono">upstage/solar-pro4</span>)
+              before making this active — an agent still set to another
+              provider&rsquo;s model name will fail every run against
+              OpenRouter.
             </p>
           </div>
         }
