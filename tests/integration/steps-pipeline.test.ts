@@ -265,6 +265,124 @@ describe("steps pipeline", () => {
     expect(result.status).toBe("COMPLETED");
   });
 
+  it("continues past an optional lookup whose match value resolves empty, without ever calling the tool", async () => {
+    // Found live: the built-in "Look up and quote" template's optional
+    // customer lookup matches on {senderEmail}. Run it through the "Run
+    // agent" manual test box (or any trigger with no real sender) and
+    // senderEmail resolves to "" — which used to reach find_record as an
+    // empty string and get rejected by its own input schema, a hard
+    // failure for a step marked required: false, on the platform's own
+    // flagship template, hit by the most ordinary way of testing it.
+    const agent = await createAgent({
+      steps: [
+        {
+          kind: "lookup",
+          as: "customer",
+          recordType: "Customer",
+          match: { by: "field", field: "email", value: "{senderEmail}" },
+          required: false,
+        },
+        {
+          kind: "compute",
+          as: "note",
+          operation: "template",
+          operands: ["done"],
+        },
+      ],
+    });
+
+    // senderEmail deliberately omitted — the exact shape of a manually
+    // triggered run, where runHarnessPipeline's default is null.
+    const result = await runHarnessPipeline(
+      agent,
+      "anything",
+      neverCallProvider,
+    );
+
+    expect(result.status).toBe("COMPLETED");
+    const toolCalls = await prisma.toolCall.findMany({
+      where: { agentRunId: result.runId },
+    });
+    // Not just "didn't fail" — proves the empty value was caught before
+    // find_record was ever invoked, not that a call happened to succeed.
+    expect(toolCalls).toHaveLength(0);
+  });
+
+  it("continues past an optional *search* lookup whose query resolves empty, treating it the same as zero results", async () => {
+    const agent = await createAgent({
+      steps: [
+        {
+          kind: "lookup",
+          as: "matches",
+          recordType: "Customer",
+          match: { by: "search", query: "{senderEmail}" },
+          required: false,
+        },
+        {
+          kind: "branch",
+          when: { left: "{matches}", operator: "not_exists" },
+          then: [
+            {
+              kind: "compute",
+              as: "note",
+              operation: "template",
+              operands: ["empty"],
+            },
+          ],
+          otherwise: [
+            {
+              kind: "compute",
+              as: "note",
+              operation: "template",
+              operands: ["found"],
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = await runHarnessPipeline(
+      agent,
+      "anything",
+      neverCallProvider,
+    );
+
+    expect(result.status).toBe("COMPLETED");
+    const toolCalls = await prisma.toolCall.findMany({
+      where: { agentRunId: result.runId },
+    });
+    expect(toolCalls).toHaveLength(0);
+  });
+
+  it("fails clearly, naming the actual problem, when a required lookup's value resolves empty", async () => {
+    const agent = await createAgent({
+      steps: [
+        {
+          kind: "lookup",
+          as: "customer",
+          recordType: "Customer",
+          match: { by: "field", field: "email", value: "{senderEmail}" },
+          required: true,
+        },
+      ],
+    });
+
+    const result = await runHarnessPipeline(
+      agent,
+      "anything",
+      neverCallProvider,
+    );
+
+    expect(result.status).toBe("FAILED");
+    const steps = await prisma.runStep.findMany({
+      where: { agentRunId: result.runId, stepType: "RUN_FAILED" },
+    });
+    // Names the real problem (nothing to look up with) rather than
+    // surfacing find_record's own generic "expected string, received ''"
+    // input-validation error.
+    expect(steps[0]?.detail).toMatch(/resolved to an empty value/i);
+  });
+
   it("fails the run when a required lookup finds nothing", async () => {
     const agent = await createAgent({
       steps: [
@@ -329,6 +447,121 @@ describe("steps pipeline", () => {
       where: { agentRunId: result.runId, toolName: "create_record" },
     });
     expect(JSON.stringify(call?.input)).toContain("Hello Known Customer");
+  });
+
+  it("a search lookup with first: true binds the single top record, not the array — the platform's own quote template's exact bug", async () => {
+    // Real, pre-existing defect in the built-in "Look up and quote"
+    // template, found live: its product lookup uses match.by: "search"
+    // (correctly — a customer describes a product in prose, find_record's
+    // exact match would reject any rewording), then its compute step reads
+    // {item.data.unitPrice} as if item were the single found record. A
+    // search binds the whole array by design (asList() in values.ts is
+    // built for exactly that), and resolvePath() deliberately refuses to
+    // index into an array, so this always resolved to undefined and always
+    // failed at compute — for any provider, the moment a real search
+    // actually matched something. first: true is what fixes it: same
+    // "top record, or null" shape a by:"field" lookup already produces.
+    await createRecord(organisationId, "Product", {
+      sku: "RACK-1",
+      name: "42U Server Rack Cabinet",
+      unitPrice: 849.99,
+      stockQuantity: 36,
+    });
+
+    const agent = await createAgent({
+      steps: [
+        {
+          kind: "lookup",
+          as: "item",
+          recordType: "Product",
+          match: { by: "search", query: "server rack", first: true },
+          required: true,
+        },
+        {
+          kind: "compute",
+          as: "total",
+          operation: "multiply",
+          operands: ["{item.data.unitPrice}", "8"],
+        },
+      ],
+    });
+
+    const result = await runHarnessPipeline(
+      agent,
+      "anything",
+      neverCallProvider,
+    );
+
+    expect(result.status).toBe("COMPLETED");
+  });
+
+  it("a search lookup without first still binds the array, unchanged — first is additive, not a default change", async () => {
+    // Deliberately distinct query text from the first: true test above and
+    // exactly 2 self-created matches, so the count this test asserts on
+    // can't be inflated by another test's Product rows in the same shared
+    // org. count only proves the point because it distinguishes the two
+    // shapes: asList() wraps a single record OR an array equally, so
+    // count would silently return 1 either way for a single record — a
+    // weaker assertion (e.g. "the run completed") couldn't tell a real
+    // array from an accidentally-defaulted single record apart at all.
+    await createRecord(organisationId, "Product", {
+      sku: "UNIQ-ARR-1",
+      name: "Uniquearray Widget Mk1",
+      unitPrice: 10,
+      stockQuantity: 1,
+    });
+    await createRecord(organisationId, "Product", {
+      sku: "UNIQ-ARR-2",
+      name: "Uniquearray Widget Mk2",
+      unitPrice: 20,
+      stockQuantity: 1,
+    });
+
+    const agent = await createAgent({
+      steps: [
+        {
+          kind: "lookup",
+          as: "items",
+          recordType: "Product",
+          match: { by: "search", query: "Uniquearray Widget" },
+          required: true,
+        },
+        {
+          kind: "compute",
+          as: "total",
+          operation: "count",
+          operands: ["{items}"],
+        },
+        // Stringified via a template step rather than writing {total}
+        // straight into a text-typed record field — a raw number there is
+        // a separate, deliberately-not-fixed gap (create_record's coercion
+        // covers currency/number field *types*, not a text field handed a
+        // number), not what this test is checking.
+        {
+          kind: "compute",
+          as: "summary",
+          operation: "template",
+          operands: ["{total} matches"],
+        },
+        {
+          kind: "act",
+          tool: "create_record",
+          args: { recordType: "Invoice", data: { number: "{summary}" } },
+        },
+      ],
+    });
+
+    const result = await runHarnessPipeline(
+      agent,
+      "anything",
+      neverCallProvider,
+    );
+
+    expect(result.status).toBe("COMPLETED");
+    const call = await prisma.toolCall.findFirst({
+      where: { agentRunId: result.runId, toolName: "create_record" },
+    });
+    expect(JSON.stringify(call?.input)).toContain("2 matches");
   });
 
   it("refuses a tool the agent was not granted, even though the sequence is deterministic", async () => {
