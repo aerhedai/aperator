@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import type { AgentFormState } from "@/app/(app)/agents/actions";
 import type { Agent } from "@/lib/generated/prisma/client";
 import { TOOL_GROUPS, TOOL_REGISTRY } from "@/lib/mcp/tool-registry";
@@ -36,6 +37,14 @@ import { TOOL_GROUPS, TOOL_REGISTRY } from "@/lib/mcp/tool-registry";
  * Agents created before that change still run their original pipeline —
  * see the notice rendered for them below. They aren't migrated, and
  * nothing here can turn one into another; they simply keep working.
+ *
+ * Laid out as sections rather than one long scroll — a business owner
+ * configuring an agent isn't reading top to bottom like a document, they're
+ * jumping to "what should it say" or "what can it touch." The step editor
+ * itself is deliberately unchanged by this: it's a structured JSON editor,
+ * not a visual builder (CLAUDE.md §18 rules out a drag-and-drop workflow
+ * editor, and branching/nested steps don't reduce to a row-per-step view
+ * anyway) — sectioning only reorganizes what surrounds it.
  */
 
 function SubmitButton({ label }: { label: string }) {
@@ -82,6 +91,39 @@ function isLegacyPipeline(agent?: AgentFormValues): boolean {
   if (!agent) return false;
   if (agent.executionMode === "LOOP") return true;
   return agent.pipelineKey !== null && agent.pipelineKey !== "steps";
+}
+
+const SECTIONS = [
+  { id: "basics", label: "Basics" },
+  { id: "instructions", label: "Instructions & Guardrails" },
+  { id: "steps", label: "Steps" },
+  { id: "tools", label: "Tools & Permissions" },
+  { id: "routing", label: "Routing & Account" },
+] as const;
+
+type Section = (typeof SECTIONS)[number]["id"];
+
+// Which section a given field's server-side validation error belongs to —
+// used to jump the form to the right place after a failed submit, so an
+// error in a section that isn't currently open doesn't silently sit
+// off-screen.
+const FIELD_SECTION: Record<string, Section> = {
+  name: "basics",
+  description: "basics",
+  instructions: "instructions",
+  pipelineConfig: "steps",
+  model: "routing",
+};
+
+function sectionForFirstError(
+  fieldErrors: AgentFormState["fieldErrors"],
+): Section | null {
+  if (!fieldErrors) return null;
+  for (const key of Object.keys(fieldErrors)) {
+    const section = FIELD_SECTION[key];
+    if (section) return section;
+  }
+  return null;
 }
 
 export function AgentForm({
@@ -145,6 +187,15 @@ export function AgentForm({
     () => new Set(agent?.toolNames ?? []),
   );
 
+  // null = no manual choice since the last submit, so the section with the
+  // first error (if any) wins. Cleared on every submit (see the form's
+  // onSubmit below) rather than tracked with an effect reacting to `state`
+  // changing — a plain event handler setting state in response to the
+  // user's own submit action, not a synchronized side effect.
+  const [manualSection, setManualSection] = useState<Section | null>(null);
+  const activeSection =
+    manualSection ?? sectionForFirstError(state.fieldErrors) ?? "basics";
+
   function installTemplate(template: TemplateOption) {
     setStepsJson(JSON.stringify(template.steps, null, 2));
     // Added to what's already ticked rather than replacing it — someone
@@ -166,7 +217,11 @@ export function AgentForm({
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-6">
+    <form
+      action={formAction}
+      onSubmit={() => setManualSection(null)}
+      className="flex flex-col gap-4"
+    >
       {state.error && <p className="text-sm text-destructive">{state.error}</p>}
       {unhandledFieldErrors.length > 0 && (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
@@ -181,230 +236,303 @@ export function AgentForm({
         </div>
       )}
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="name">Name</Label>
-        <Input id="name" name="name" defaultValue={agent?.name} required />
-        {state.fieldErrors?.name && (
-          <p className="text-sm text-destructive">
-            {state.fieldErrors.name[0]}
-          </p>
-        )}
-      </div>
+      <div className="flex gap-6">
+        <nav className="flex w-56 shrink-0 flex-col gap-0.5">
+          {SECTIONS.map((section) => {
+            const hasError =
+              section.id === sectionForFirstError(state.fieldErrors);
+            return (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => setManualSection(section.id)}
+                className={cn(
+                  "flex items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors",
+                  activeSection === section.id
+                    ? "bg-secondary text-foreground"
+                    : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
+                )}
+              >
+                {section.label}
+                {hasError && (
+                  <span className="size-1.5 shrink-0 rounded-full bg-destructive" />
+                )}
+              </button>
+            );
+          })}
+        </nav>
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="description">Description</Label>
-        <textarea
-          id="description"
-          name="description"
-          defaultValue={agent?.description}
-          required
-          rows={2}
-          className="w-full rounded-md border border-border bg-transparent p-3 text-sm"
-        />
-        <p className="text-xs text-muted-foreground">
-          What this agent handles. The classifier routes inbound work by
-          comparing messages against this, so be specific about scope.
-        </p>
-        {state.fieldErrors?.description && (
-          <p className="text-sm text-destructive">
-            {state.fieldErrors.description[0]}
-          </p>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="instructions">Instructions</Label>
-        <textarea
-          id="instructions"
-          name="instructions"
-          defaultValue={agent?.instructions}
-          required
-          rows={3}
-          className="w-full rounded-md border border-border bg-transparent p-3 text-sm"
-        />
-        <p className="text-xs text-muted-foreground">
-          Business-specific guidance, added on top of each step&rsquo;s own
-          instructions rather than replacing them.
-        </p>
-        {state.fieldErrors?.instructions && (
-          <p className="text-sm text-destructive">
-            {state.fieldErrors.instructions[0]}
-          </p>
-        )}
-      </div>
-
-      {legacy ? (
-        <div className="flex flex-col gap-2 rounded-md border border-border bg-secondary/40 p-3">
-          {/* categoryType defaults to "steps" server-side when this field is
-              absent, so it must be sent explicitly here — otherwise saving
-              an edit to a legacy agent would silently re-point it at the
-              step pipeline with no steps configured, breaking a working
-              agent through an unrelated edit. A LOOP agent has
-              pipelineKey: null, which is indistinguishable from "not set"
-              once it's the empty string this input would otherwise submit
-              — "loop" has to be spelled out explicitly rather than reusing
-              pipelineKey, or LOOP agents would hit exactly that bug. */}
-          <input
-            type="hidden"
-            name="categoryType"
-            value={
-              agent?.executionMode === "LOOP"
-                ? "loop"
-                : (agent?.pipelineKey ?? "")
-            }
-          />
-          <p className="text-sm font-medium">
-            {agent?.executionMode === "LOOP" ? (
-              <>This agent runs freely (LOOP mode)</>
-            ) : (
-              <>
-                This agent runs the built-in &ldquo;{agent?.pipelineKey}&rdquo;
-                process
-              </>
+        <div className="min-w-0 flex-1 rounded-lg border border-border p-6">
+          <div
+            className={cn(
+              "flex flex-col gap-4",
+              activeSection !== "basics" && "hidden",
             )}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {agent?.executionMode === "LOOP" ? (
-              <>
-                It decides which of its granted tools to call, turn by turn,
-                rather than following a fixed step sequence — this is how every
-                workflow&rsquo;s classifier runs. It isn&rsquo;t editable as
-                steps here; its name, description, instructions, model, and tool
-                grants above still apply and can be changed freely.
-              </>
-            ) : (
-              <>
-                It was created before agents became step sequences, and keeps
-                working exactly as it did. Its steps aren&rsquo;t editable here
-                — to move it onto steps, create a new agent from a template and
-                retire this one.
-              </>
-            )}
-          </p>
-        </div>
-      ) : (
-        <>
-          <TemplatePicker templates={templates} onInstall={installTemplate} />
-          <StepProgrammeFields value={stepsJson} onChange={setStepsJson} />
-          {state.fieldErrors?.pipelineConfig && (
-            <p className="text-sm text-destructive">
-              {state.fieldErrors.pipelineConfig[0]}
-            </p>
-          )}
-        </>
-      )}
-
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="guardrailKeywords">Never say</Label>
-        <Input
-          id="guardrailKeywords"
-          name="guardrailKeywords"
-          defaultValue={agent?.guardrailKeywords?.join(", ")}
-          placeholder="e.g. refund, compensation, discount"
-        />
-        <p className="text-xs text-muted-foreground">
-          Comma-separated. If composed text contains any of these, the run fails
-          outright — it&rsquo;s never proposed for approval. Leave blank for no
-          guardrail.
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="model">Model</Label>
-        <Input
-          id="model"
-          name="model"
-          defaultValue={agent?.model}
-          required
-          placeholder="e.g. qwen2.5:14b"
-        />
-        {state.fieldErrors?.model && (
-          <p className="text-sm text-destructive">
-            {state.fieldErrors.model[0]}
-          </p>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="keywords">Routing keywords</Label>
-        <Input
-          id="keywords"
-          name="keywords"
-          defaultValue={agent?.keywords?.join(", ")}
-          placeholder="e.g. quote, price, how much"
-        />
-        <p className="text-xs text-muted-foreground">
-          Comma-separated. If an inbound message contains one of these words and
-          no other agent&rsquo;s keywords also match, routing skips the LLM
-          classifier entirely. Leave blank to always ask the classifier.
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="actionIntegrationId">Action account</Label>
-        <select
-          id="actionIntegrationId"
-          name="actionIntegrationId"
-          defaultValue={agent?.actionIntegrationId ?? ""}
-          className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
-        >
-          <option value="">Organisation&rsquo;s default account</option>
-          {gmailIntegrations.map((integration) => (
-            <option key={integration.id} value={integration.id}>
-              {integration.name}
-            </option>
-          ))}
-        </select>
-        <p className="text-xs text-muted-foreground">
-          Which connected account this agent sends from. Leave as default unless
-          this business has connected more than one and needs different agents
-          replying from different addresses.
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label>Tools</Label>
-        <div className="flex flex-col gap-4 rounded-md border border-border p-3">
-          {TOOL_GROUPS.map((group) => (
-            <div key={group} className="flex flex-col gap-2">
-              <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                {group}
-              </span>
-              {TOOL_REGISTRY.filter((tool) => tool.group === group).map(
-                (tool) => (
-                  <label
-                    key={tool.name}
-                    className="flex items-start gap-2 text-sm"
-                    htmlFor={`tool-${tool.name}`}
-                  >
-                    <input
-                      type="checkbox"
-                      id={`tool-${tool.name}`}
-                      name="toolNames"
-                      value={tool.name}
-                      checked={toolNames.has(tool.name)}
-                      onChange={(e) => toggleTool(tool.name, e.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-border"
-                    />
-                    <span className="flex flex-col">
-                      <span className="font-medium">{tool.label}</span>
-                      <span className="text-muted-foreground">
-                        {tool.description}
-                      </span>
-                    </span>
-                  </label>
-                ),
+          >
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="name">Name</Label>
+              <Input id="name" name="name" defaultValue={agent?.name} />
+              {state.fieldErrors?.name && (
+                <p className="text-sm text-destructive">
+                  {state.fieldErrors.name[0]}
+                </p>
               )}
             </div>
-          ))}
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="description">Description</Label>
+              <textarea
+                id="description"
+                name="description"
+                defaultValue={agent?.description}
+                rows={3}
+                className="w-full rounded-md border border-border bg-transparent p-3 text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                What this agent handles. The classifier routes inbound work by
+                comparing messages against this, so be specific about scope.
+              </p>
+              {state.fieldErrors?.description && (
+                <p className="text-sm text-destructive">
+                  {state.fieldErrors.description[0]}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div
+            className={cn(
+              "flex flex-col gap-4",
+              activeSection !== "instructions" && "hidden",
+            )}
+          >
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="instructions">Instructions</Label>
+              <textarea
+                id="instructions"
+                name="instructions"
+                defaultValue={agent?.instructions}
+                rows={5}
+                className="w-full rounded-md border border-border bg-transparent p-3 text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Business-specific guidance, added on top of each step&rsquo;s
+                own instructions rather than replacing them.
+              </p>
+              {state.fieldErrors?.instructions && (
+                <p className="text-sm text-destructive">
+                  {state.fieldErrors.instructions[0]}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="guardrailKeywords">Never say</Label>
+              <Input
+                id="guardrailKeywords"
+                name="guardrailKeywords"
+                defaultValue={agent?.guardrailKeywords?.join(", ")}
+                placeholder="e.g. refund, compensation, discount"
+              />
+              <p className="text-xs text-muted-foreground">
+                Comma-separated. If composed text contains any of these, the run
+                fails outright — it&rsquo;s never proposed for approval. Leave
+                blank for no guardrail.
+              </p>
+            </div>
+          </div>
+
+          <div
+            className={cn(
+              "flex flex-col gap-4",
+              activeSection !== "steps" && "hidden",
+            )}
+          >
+            {legacy ? (
+              <div className="flex flex-col gap-2 rounded-md border border-border bg-secondary/40 p-3">
+                {/* categoryType defaults to "steps" server-side when this field is
+                    absent, so it must be sent explicitly here — otherwise saving
+                    an edit to a legacy agent would silently re-point it at the
+                    step pipeline with no steps configured, breaking a working
+                    agent through an unrelated edit. A LOOP agent has
+                    pipelineKey: null, which is indistinguishable from "not set"
+                    once it's the empty string this input would otherwise submit
+                    — "loop" has to be spelled out explicitly rather than reusing
+                    pipelineKey, or LOOP agents would hit exactly that bug. */}
+                <input
+                  type="hidden"
+                  name="categoryType"
+                  value={
+                    agent?.executionMode === "LOOP"
+                      ? "loop"
+                      : (agent?.pipelineKey ?? "")
+                  }
+                />
+                <p className="text-sm font-medium">
+                  {agent?.executionMode === "LOOP" ? (
+                    <>This agent runs freely (LOOP mode)</>
+                  ) : (
+                    <>
+                      This agent runs the built-in &ldquo;{agent?.pipelineKey}
+                      &rdquo; process
+                    </>
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {agent?.executionMode === "LOOP" ? (
+                    <>
+                      It decides which of its granted tools to call, turn by
+                      turn, rather than following a fixed step sequence — this
+                      is how every workflow&rsquo;s classifier runs. It
+                      isn&rsquo;t editable as steps here; its name, description,
+                      instructions, model, and tool grants above still apply and
+                      can be changed freely.
+                    </>
+                  ) : (
+                    <>
+                      It was created before agents became step sequences, and
+                      keeps working exactly as it did. Its steps aren&rsquo;t
+                      editable here — to move it onto steps, create a new agent
+                      from a template and retire this one.
+                    </>
+                  )}
+                </p>
+              </div>
+            ) : (
+              <>
+                <TemplatePicker
+                  templates={templates}
+                  onInstall={installTemplate}
+                />
+                <StepProgrammeFields
+                  value={stepsJson}
+                  onChange={setStepsJson}
+                />
+                {state.fieldErrors?.pipelineConfig && (
+                  <p className="text-sm text-destructive">
+                    {state.fieldErrors.pipelineConfig[0]}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+
+          <div
+            className={cn(
+              "flex flex-col gap-4",
+              activeSection !== "tools" && "hidden",
+            )}
+          >
+            <div className="flex flex-col gap-2">
+              <Label>Tools</Label>
+              <div className="flex flex-col gap-4 rounded-md border border-border p-3">
+                {TOOL_GROUPS.map((group) => (
+                  <div key={group} className="flex flex-col gap-2">
+                    <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                      {group}
+                    </span>
+                    {TOOL_REGISTRY.filter((tool) => tool.group === group).map(
+                      (tool) => (
+                        <label
+                          key={tool.name}
+                          className="flex items-start gap-2 text-sm"
+                          htmlFor={`tool-${tool.name}`}
+                        >
+                          <input
+                            type="checkbox"
+                            id={`tool-${tool.name}`}
+                            name="toolNames"
+                            value={tool.name}
+                            checked={toolNames.has(tool.name)}
+                            onChange={(e) =>
+                              toggleTool(tool.name, e.target.checked)
+                            }
+                            className="mt-0.5 h-4 w-4 rounded border-border"
+                          />
+                          <span className="flex flex-col">
+                            <span className="font-medium">{tool.label}</span>
+                            <span className="text-muted-foreground">
+                              {tool.description}
+                            </span>
+                          </span>
+                        </label>
+                      ),
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                A tool call this agent isn&rsquo;t granted here is refused at
+                runtime, even if the model asks for it.
+              </p>
+            </div>
+          </div>
+
+          <div
+            className={cn(
+              "flex flex-col gap-4",
+              activeSection !== "routing" && "hidden",
+            )}
+          >
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="model">Model</Label>
+              <Input
+                id="model"
+                name="model"
+                defaultValue={agent?.model}
+                placeholder="e.g. qwen2.5:14b"
+              />
+              {state.fieldErrors?.model && (
+                <p className="text-sm text-destructive">
+                  {state.fieldErrors.model[0]}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="keywords">Routing keywords</Label>
+              <Input
+                id="keywords"
+                name="keywords"
+                defaultValue={agent?.keywords?.join(", ")}
+                placeholder="e.g. quote, price, how much"
+              />
+              <p className="text-xs text-muted-foreground">
+                Comma-separated. If an inbound message contains one of these
+                words and no other agent&rsquo;s keywords also match, routing
+                skips the LLM classifier entirely. Leave blank to always ask the
+                classifier.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="actionIntegrationId">Action account</Label>
+              <select
+                id="actionIntegrationId"
+                name="actionIntegrationId"
+                defaultValue={agent?.actionIntegrationId ?? ""}
+                className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
+              >
+                <option value="">Organisation&rsquo;s default account</option>
+                {gmailIntegrations.map((integration) => (
+                  <option key={integration.id} value={integration.id}>
+                    {integration.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Which connected account this agent sends from. Leave as default
+                unless this business has connected more than one and needs
+                different agents replying from different addresses.
+              </p>
+            </div>
+          </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          A tool call this agent isn&rsquo;t granted here is refused at runtime,
-          even if the model asks for it.
-        </p>
       </div>
 
-      <SubmitButton label={submitLabel} />
+      <div>
+        <SubmitButton label={submitLabel} />
+      </div>
     </form>
   );
 }
