@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 
@@ -46,6 +47,7 @@ export async function startChatAction(formData: FormData): Promise<void> {
     ]),
   );
 
+  revalidatePath("/chat", "layout");
   redirect(`/chat/${runId}`);
 }
 
