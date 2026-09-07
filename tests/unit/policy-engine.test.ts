@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import * as integrationService from "@/lib/integrations/integration-service";
+import { buildMcpToolName } from "@/lib/integrations/mcp/tool-naming";
 import {
   evaluatePolicy,
   requiresApprovalBeforeExecution,
@@ -51,7 +52,10 @@ describe("requiresApprovalBeforeExecution", () => {
     });
 
     expect(
-      await requiresApprovalBeforeExecution("mcp:int1:search", ORG_ID),
+      await requiresApprovalBeforeExecution(
+        buildMcpToolName("int1", "search"),
+        ORG_ID,
+      ),
     ).toBe(false);
   });
 
@@ -64,7 +68,10 @@ describe("requiresApprovalBeforeExecution", () => {
     });
 
     expect(
-      await requiresApprovalBeforeExecution("mcp:int1:delete_page", ORG_ID),
+      await requiresApprovalBeforeExecution(
+        buildMcpToolName("int1", "delete_page"),
+        ORG_ID,
+      ),
     ).toBe(true);
   });
 
@@ -72,7 +79,10 @@ describe("requiresApprovalBeforeExecution", () => {
     vi.spyOn(integrationService, "findMcpTool").mockResolvedValueOnce(null);
 
     expect(
-      await requiresApprovalBeforeExecution("mcp:gone:whatever", ORG_ID),
+      await requiresApprovalBeforeExecution(
+        buildMcpToolName("gone", "whatever"),
+        ORG_ID,
+      ),
     ).toBe(true);
   });
 });

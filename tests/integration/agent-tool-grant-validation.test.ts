@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import * as agentService from "@/lib/agents/agent-service";
 import { prisma } from "@/lib/db/prisma";
+import { buildMcpToolName } from "@/lib/integrations/mcp/tool-naming";
 
 const baseAgentInput = {
   name: "Test Agent",
@@ -102,7 +103,7 @@ describe("agent tool grant validation", () => {
 
     const agent = await agentService.createAgent(organisationId, {
       ...baseAgentInput,
-      toolNames: [`mcp:${integration.id}:search`],
+      toolNames: [buildMcpToolName(integration.id, "search")],
     });
     expect(agent.id).toBeDefined();
   });
@@ -121,7 +122,7 @@ describe("agent tool grant validation", () => {
     await expect(
       agentService.createAgent(organisationId, {
         ...baseAgentInput,
-        toolNames: [`mcp:${integration.id}:search`],
+        toolNames: [buildMcpToolName(integration.id, "search")],
       }),
     ).rejects.toThrow(/does not exist/i);
   });
@@ -154,7 +155,7 @@ describe("agent tool grant validation", () => {
     await expect(
       agentService.createAgent(organisationId, {
         ...baseAgentInput,
-        toolNames: [`mcp:${otherIntegration.id}:search`],
+        toolNames: [buildMcpToolName(otherIntegration.id, "search")],
       }),
     ).rejects.toThrow(/does not exist/i);
 

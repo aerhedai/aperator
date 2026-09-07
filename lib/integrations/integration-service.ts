@@ -6,7 +6,10 @@ import { refreshAccessToken as refreshGmailAccessToken } from "@/lib/integration
 import type { GmailTokens } from "@/lib/integrations/gmail/oauth";
 import { refreshAccessToken as refreshGoogleAccessToken } from "@/lib/integrations/google/oauth-core";
 import { listExternalMcpTools } from "@/lib/integrations/mcp/external-client";
-import type { DiscoveredMcpTool } from "@/lib/integrations/mcp/tool-naming";
+import {
+  encodeRemoteToolName,
+  type DiscoveredMcpTool,
+} from "@/lib/integrations/mcp/tool-naming";
 import { refreshAccessToken as refreshMicrosoftAccessToken } from "@/lib/integrations/microsoft/oauth-core";
 import type { OAuthExchangeResult } from "@/lib/integrations/oauth-adapter";
 
@@ -596,6 +599,15 @@ export async function refreshMcpServerTools(
  * exactly which tools genuinely exist for this organisation right now.
  * Scoped by organisationId at the repository layer — an id belonging to a
  * different organisation's connection can never match here.
+ *
+ * `remoteToolName` here is whatever `parseMcpToolName` returned — for most
+ * tools that's the real remote name unchanged, but a very long remote name
+ * gets truncated+hashed by `encodeRemoteToolName` when the full
+ * `mcp__<id>__<name>` string would exceed the 64-character limit
+ * Gemini/OpenAI enforce (see tool-naming.ts). Matching by re-encoding each
+ * cached tool's real name the same way — rather than comparing raw
+ * `tool.name` — is what keeps that case working end to end instead of
+ * silently 404ing every long-named tool.
  */
 export async function findMcpTool(
   organisationId: string,
@@ -608,5 +620,10 @@ export async function findMcpTool(
   );
   if (!integration || integration.provider !== MCP_PROVIDER) return null;
   const tools = (integration.config as { tools?: DiscoveredMcpTool[] }).tools;
-  return tools?.find((tool) => tool.name === remoteToolName) ?? null;
+  return (
+    tools?.find(
+      (tool) =>
+        encodeRemoteToolName(integrationId, tool.name) === remoteToolName,
+    ) ?? null
+  );
 }
