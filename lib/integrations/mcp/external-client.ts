@@ -42,8 +42,7 @@ export async function listExternalMcpTools(
       inputSchema: {
         type: "object",
         properties: tool.inputSchema?.properties as
-          | Record<string, unknown>
-          | undefined,
+          Record<string, unknown> | undefined,
         required: tool.inputSchema?.required,
       },
       readOnlyHint: tool.annotations?.readOnlyHint ?? null,
