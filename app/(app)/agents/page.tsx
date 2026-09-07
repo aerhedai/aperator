@@ -1,8 +1,7 @@
 import Link from "next/link";
 
-import { AgentStatusBadge } from "@/components/agents/agent-status-badge";
+import { AgentList } from "@/components/agents/agent-list";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import * as agentService from "@/lib/agents/agent-service";
 import { getCurrentOrganisation } from "@/lib/organisations/current-organisation";
 
@@ -22,35 +21,7 @@ export default async function AgentsPage() {
         </Button>
       </div>
 
-      {agents.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No agents yet. Create one to get started.
-        </p>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {agents.map((agent) => (
-            <Link key={agent.id} href={`/agents/${agent.id}`}>
-              <Card className="transition-colors hover:border-primary/40">
-                <CardContent className="flex items-center justify-between py-4">
-                  <div className="flex flex-col gap-1">
-                    <span className="font-medium">{agent.name}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {agent.description}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm text-muted-foreground">
-                      {agent._count.runs} run
-                      {agent._count.runs === 1 ? "" : "s"}
-                    </span>
-                    <AgentStatusBadge status={agent.status} />
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      )}
+      <AgentList agents={agents} />
     </div>
   );
 }

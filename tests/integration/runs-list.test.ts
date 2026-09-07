@@ -6,6 +6,7 @@ import * as runService from "@/lib/runs/run-service";
 describe("listRunsForOrganisation", () => {
   const organisationId = "test-org-runs-list";
   let agentId: string;
+  let otherAgentId: string;
   const runIds: string[] = [];
 
   beforeAll(async () => {
@@ -27,6 +28,17 @@ describe("listRunsForOrganisation", () => {
       },
     });
     agentId = agent.id;
+    const otherAgent = await prisma.agent.create({
+      data: {
+        organisationId,
+        name: "Other Agent",
+        description: "d",
+        instructions: "i",
+        model: "test-model",
+        status: "ACTIVE",
+      },
+    });
+    otherAgentId = otherAgent.id;
 
     // 3 runs, decreasing tokens, so ordering + aggregation are both
     // provably correct rather than accidentally right on symmetric data.
@@ -60,6 +72,18 @@ describe("listRunsForOrganisation", () => {
         },
       });
     }
+
+    // One more run, on the other agent, FAILED, with a distinctive input —
+    // the target for the filter tests below (status/agentId/q).
+    const failedRun = await prisma.agentRun.create({
+      data: {
+        organisationId,
+        agentId: otherAgentId,
+        input: "Quote request from Acme Widget Co",
+        status: "FAILED",
+      },
+    });
+    runIds.push(failedRun.id);
   });
 
   afterAll(async () => {
@@ -78,7 +102,11 @@ describe("listRunsForOrganisation", () => {
   });
 
   it("sums tokens across every step of a run, per run, not just the first step", async () => {
-    const result = await runService.listRunsForOrganisation(organisationId, 1);
+    // Scoped to this agent's 3 runs specifically — the org also has a 4th,
+    // unrelated run (on a different agent) added for the filter tests below.
+    const result = await runService.listRunsForOrganisation(organisationId, 1, {
+      agentId,
+    });
 
     expect(result.totalCount).toBe(3);
     // Most recent first — the third run created has the smallest token
@@ -94,7 +122,42 @@ describe("listRunsForOrganisation", () => {
   });
 
   it("includes the agent name for display without a separate lookup", async () => {
-    const result = await runService.listRunsForOrganisation(organisationId, 1);
+    const result = await runService.listRunsForOrganisation(organisationId, 1, {
+      agentId,
+    });
     expect(result.runs.every((r) => r.agentName === "Test Agent")).toBe(true);
+  });
+
+  it("filters by status", async () => {
+    const result = await runService.listRunsForOrganisation(organisationId, 1, {
+      status: "FAILED",
+    });
+    expect(result.totalCount).toBe(1);
+    expect(result.runs[0]?.status).toBe("FAILED");
+  });
+
+  it("filters by agent", async () => {
+    const result = await runService.listRunsForOrganisation(organisationId, 1, {
+      agentId: otherAgentId,
+    });
+    expect(result.totalCount).toBe(1);
+    expect(result.runs[0]?.agentName).toBe("Other Agent");
+  });
+
+  it("filters by a case-insensitive match on the run's input", async () => {
+    const result = await runService.listRunsForOrganisation(organisationId, 1, {
+      q: "acme widget",
+    });
+    expect(result.totalCount).toBe(1);
+    expect(result.runs[0]?.input).toContain("Acme Widget");
+  });
+
+  it("combining filters that match nothing returns an empty page, not an error", async () => {
+    const result = await runService.listRunsForOrganisation(organisationId, 1, {
+      status: "COMPLETED",
+      agentId: otherAgentId,
+    });
+    expect(result.totalCount).toBe(0);
+    expect(result.runs).toHaveLength(0);
   });
 });

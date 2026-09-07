@@ -47,14 +47,16 @@ export interface RunsPage {
 export async function listRunsForOrganisation(
   organisationId: string,
   page = 1,
+  filters: runRepository.RunFilters = {},
 ): Promise<RunsPage> {
   const safePage = Math.max(1, page);
   const [runs, totalCount] = await Promise.all([
-    runRepository.findRunsByOrganisation(organisationId, {
-      skip: (safePage - 1) * RUNS_PAGE_SIZE,
-      take: RUNS_PAGE_SIZE,
-    }),
-    runRepository.countRunsByOrganisation(organisationId),
+    runRepository.findRunsByOrganisation(
+      organisationId,
+      { skip: (safePage - 1) * RUNS_PAGE_SIZE, take: RUNS_PAGE_SIZE },
+      filters,
+    ),
+    runRepository.countRunsByOrganisation(organisationId, filters),
   ]);
 
   const tokenTotals = await runRepository.sumTokensByRunIds(

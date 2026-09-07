@@ -3,7 +3,7 @@ import type {
   WorkflowAgentRole,
   WorkflowTriggerType,
 } from "@/lib/generated/prisma/client";
-import { EMAIL_TRIGGER_PROVIDERS } from "@/lib/workflows/workflow-service";
+import { EMAIL_TRIGGER_PROVIDERS } from "@/lib/workflows/email-trigger-providers";
 
 // Pure, read-only diagnostics — no schema change, no write path. Exists
 // because an ACTIVE workflow can silently do nothing at all (no connected

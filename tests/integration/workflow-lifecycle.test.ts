@@ -356,6 +356,48 @@ describe("workflow lifecycle", () => {
     expect(agentStillExists).not.toBeNull();
   });
 
+  it("deletes a workflow with no members assigned", async () => {
+    const workflow = await workflowService.createWorkflow(organisationId, {
+      name: "Empty, Deletable",
+      description: "d",
+      trigger: "EMAIL",
+    });
+
+    const deleted = await workflowService.deleteWorkflow(
+      organisationId,
+      workflow.id,
+    );
+
+    expect(deleted).toBe(true);
+    const reloaded = await prisma.workflow.findUnique({
+      where: { id: workflow.id },
+    });
+    expect(reloaded).toBeNull();
+  });
+
+  it("refuses to delete a workflow that still has agents assigned", async () => {
+    const workflow = await workflowService.createWorkflow(organisationId, {
+      name: "Has Members",
+      description: "d",
+      trigger: "EMAIL",
+    });
+    await workflowService.addMember(
+      organisationId,
+      workflow.id,
+      handlerId,
+      "HANDLER",
+    );
+
+    await expect(
+      workflowService.deleteWorkflow(organisationId, workflow.id),
+    ).rejects.toThrow(/still has agents assigned/);
+
+    const reloaded = await prisma.workflow.findUnique({
+      where: { id: workflow.id },
+    });
+    expect(reloaded).not.toBeNull();
+  });
+
   it("does not remove a member from a workflow belonging to a different organisation", async () => {
     const otherOrganisationId = "test-org-workflow-lifecycle-other";
     await prisma.organisation.create({

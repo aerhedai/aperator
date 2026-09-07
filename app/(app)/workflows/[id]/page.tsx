@@ -11,6 +11,7 @@ import { RunStatusBadge } from "@/components/runs/run-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DeleteWorkflowDialog } from "@/components/workflows/delete-workflow-dialog";
 import { WorkflowFlowDiagram } from "@/components/workflows/workflow-flow-diagram";
 import * as agentService from "@/lib/agents/agent-service";
 import * as integrationService from "@/lib/integrations/integration-service";
@@ -104,8 +105,17 @@ export default async function WorkflowDetailPage({
             {workflow.source === "TEMPLATE" ? "Template" : "Custom"}
           </Badge>
           <Badge variant="outline">{workflow.trigger}</Badge>
+          {workflow.members.length === 0 && (
+            <DeleteWorkflowDialog id={workflow.id} name={workflow.name} />
+          )}
         </div>
       </div>
+      {workflow.members.length > 0 && (
+        <p className="-mt-4 text-xs text-muted-foreground">
+          This workflow has agents assigned, so it can&rsquo;t be deleted —
+          remove them below, or archive the workflow instead.
+        </p>
+      )}
 
       {triggerIntegration && (
         <p className="-mt-4 text-sm text-muted-foreground">
