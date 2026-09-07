@@ -1,3 +1,11 @@
+import {
+  Activity,
+  Bot,
+  BookText,
+  CheckCircle2,
+  Table2,
+  Workflow,
+} from "lucide-react";
 import Link from "next/link";
 
 import { checkInboxAction } from "@/app/(app)/dashboard/actions";
@@ -13,6 +21,45 @@ import { cn } from "@/lib/utils";
 import * as dashboardService from "@/lib/dashboard/dashboard-service";
 import * as integrationService from "@/lib/integrations/integration-service";
 import { getCurrentOrganisation } from "@/lib/organisations/current-organisation";
+
+const JUMP_TO = [
+  {
+    href: "/workflows",
+    label: "Workflows",
+    detail: "Classifier + handler routing for each trigger.",
+    icon: Workflow,
+  },
+  {
+    href: "/agents",
+    label: "Agents",
+    detail: "Instructions, granted tools, and execution mode.",
+    icon: Bot,
+  },
+  {
+    href: "/runs",
+    label: "Runs",
+    detail: "Every execution, step by step, with token cost.",
+    icon: Activity,
+  },
+  {
+    href: "/catalog",
+    label: "Catalog",
+    detail: "Your own record types — Products, Customers, and more.",
+    icon: Table2,
+  },
+  {
+    href: "/knowledge",
+    label: "Knowledge",
+    detail: "Indexed documents agents can retrieve answers from.",
+    icon: BookText,
+  },
+  {
+    href: "/approvals",
+    label: "Approvals",
+    detail: "Proposed actions held for a human decision.",
+    icon: CheckCircle2,
+  },
+];
 
 const EMAIL_PROVIDER_LABELS: Record<string, string> = {
   gmail: "Gmail",
@@ -88,13 +135,7 @@ export default async function DashboardPage({
   return (
     <div className="flex flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Dashboard</h1>
-        <Link
-          href="/workflows"
-          className="text-sm font-medium text-primary hover:underline"
-        >
-          View workflows →
-        </Link>
+        <h1 className="text-xl font-semibold">Overview</h1>
       </div>
 
       {(inboxFlash || inboxError) && (
@@ -182,6 +223,34 @@ export default async function DashboardPage({
             ))}
           </CardContent>
         </Card>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-medium text-muted-foreground">Jump to</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {JUMP_TO.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link key={item.href} href={item.href}>
+                <Card className="h-full transition-colors hover:border-app-accent">
+                  <CardHeader>
+                    <div className="mb-1 flex size-8 items-center justify-center rounded-md bg-app-accent-soft text-app-accent-soft-foreground">
+                      <Icon className="size-4" />
+                    </div>
+                    <CardTitle className="text-sm font-semibold">
+                      {item.label}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      {item.detail}
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
+        </div>
       </section>
 
       <section className="flex flex-col gap-3">

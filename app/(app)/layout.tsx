@@ -1,12 +1,22 @@
 import type { ReactNode } from "react";
 
-import { Nav } from "@/components/layout/nav";
+import { Sidebar } from "@/components/layout/sidebar";
+import * as dashboardService from "@/lib/dashboard/dashboard-service";
+import { getCurrentOrganisation } from "@/lib/organisations/current-organisation";
 
-export default function AppLayout({ children }: { children: ReactNode }) {
+export default async function AppLayout({ children }: { children: ReactNode }) {
+  // Every page under this layout is guaranteed a resolved organisation —
+  // getCurrentOrganisation() redirects to /sign-in or /select-organisation
+  // otherwise, both of which live outside this layout (app/sign-in,
+  // app/select-organisation), so there's no risk of redirecting a page
+  // back into itself.
+  const organisation = await getCurrentOrganisation();
+  const counts = await dashboardService.getDashboardCounts(organisation.id);
+
   return (
-    <>
-      <Nav />
-      {children}
-    </>
+    <div className="flex">
+      <Sidebar pendingApprovals={counts.waitingForApproval} />
+      <main className="min-w-0 flex-1">{children}</main>
+    </div>
   );
 }
