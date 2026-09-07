@@ -4,13 +4,25 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeleteEntityTypeDialog } from "@/components/entities/delete-entity-type-dialog";
-import { DeleteRecordButton } from "@/components/entities/delete-record-button";
+import { EntityRecordTable } from "@/components/entities/entity-record-table";
 import * as entityRecordService from "@/lib/entities/entity-record-service";
 import * as entityTypeService from "@/lib/entities/entity-type-service";
-import { entityFieldsSchema } from "@/lib/entities/schemas";
+import {
+  entityFieldsSchema,
+  type EntityFieldConfig,
+} from "@/lib/entities/schemas";
 import { getCurrentOrganisation } from "@/lib/organisations/current-organisation";
 
 export const dynamic = "force-dynamic";
+
+// The label shown for a referenced record — its target type's first
+// non-reference field (a reasonable "name"-shaped default), falling back to
+// the first field of any kind, and finally the record's own id.
+function pickLabelField(fields: EntityFieldConfig[]): string | null {
+  return (
+    fields.find((f) => f.type !== "reference")?.name ?? fields[0]?.name ?? null
+  );
+}
 
 export default async function EntityTypeDetailPage({
   params,
@@ -26,8 +38,45 @@ export default async function EntityTypeDetailPage({
   const fields = entityFieldsSchema.parse(entityType.fields);
   const records = await entityRecordService.listRecords(organisation.id, id);
 
+  // Resolved once per referenced *type*, not per record or per cell — a
+  // reference field's value is just an id, so rendering it as a clickable,
+  // human-readable link needs the target type's own id (for the URL) and a
+  // label for each of its records, gathered up front rather than doing a
+  // lookup per row.
+  const referenceFields = fields.filter((f) => f.type === "reference");
+  const referenceTargets: Record<
+    string,
+    { entityTypeId: string; labels: Record<string, string> }
+  > = {};
+  if (referenceFields.length > 0) {
+    const allTypes = await entityTypeService.listEntityTypes(organisation.id);
+    const typesByName = new Map(allTypes.map((t) => [t.name, t]));
+
+    for (const field of referenceFields) {
+      if (field.type !== "reference") continue;
+      const targetType = typesByName.get(field.recordType);
+      if (!targetType) continue;
+
+      const targetFields = entityFieldsSchema.parse(targetType.fields);
+      const labelField = pickLabelField(targetFields);
+      const targetRecords = await entityRecordService.listRecords(
+        organisation.id,
+        targetType.id,
+      );
+
+      const labels: Record<string, string> = {};
+      for (const targetRecord of targetRecords) {
+        const data = targetRecord.data as Record<string, unknown>;
+        labels[targetRecord.id] = labelField
+          ? String(data[labelField] ?? targetRecord.id)
+          : targetRecord.id;
+      }
+      referenceTargets[field.name] = { entityTypeId: targetType.id, labels };
+    }
+  }
+
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">{entityType.name}</h1>
         <div className="flex items-center gap-2">
@@ -64,7 +113,8 @@ export default async function EntityTypeDetailPage({
               <span className="font-mono text-xs text-muted-foreground">
                 {field.name}
               </span>{" "}
-              — {field.description}
+              <span className="text-muted-foreground">({field.type})</span> —{" "}
+              {field.description}
             </p>
           ))}
         </CardContent>
@@ -77,50 +127,16 @@ export default async function EntityTypeDetailPage({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {records.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No records yet.</p>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {records.map((record) => {
-                const data = record.data as Record<string, unknown>;
-                return (
-                  <div
-                    key={record.id}
-                    className="flex items-start justify-between gap-3 rounded-md border border-border p-3 text-sm"
-                  >
-                    <div>
-                      {fields.map((field) => (
-                        <p key={field.name}>
-                          <span className="text-muted-foreground">
-                            {field.name}:
-                          </span>{" "}
-                          {String(data[field.name] ?? "")}
-                        </p>
-                      ))}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        nativeButton={false}
-                        render={
-                          <Link
-                            href={`/catalog/${id}/records/${record.id}/edit`}
-                          />
-                        }
-                      >
-                        Edit
-                      </Button>
-                      <DeleteRecordButton
-                        entityTypeId={id}
-                        recordId={record.id}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <EntityRecordTable
+            entityTypeId={id}
+            fields={fields}
+            records={records.map((record) => ({
+              id: record.id,
+              data: record.data as Record<string, unknown>,
+            }))}
+            currencyCode={organisation.currency}
+            referenceTargets={referenceTargets}
+          />
         </CardContent>
       </Card>
     </div>
