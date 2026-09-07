@@ -116,14 +116,32 @@ export async function createMcpServerAccountAction(
   }
 }
 
+// Bound to a plain <form action={...}> in integrations-section.tsx, not a
+// useActionState one — there's no state slot to surface an error message
+// into today (see createMcpServerAccountAction's McpServerFormState for
+// what that would look like; wiring this button up to it is a larger UI
+// change than this fix warrants). refreshMcpServerTools can throw (remote
+// server unreachable, rotated/revoked token, a non-MCP response) — caught
+// here so a transient failure degrades to "nothing changed" instead of
+// crashing to Next's error boundary. The existing cached tool list is left
+// untouched on failure, since refreshMcpServerTools only overwrites it
+// after a successful listTools() call.
 export async function refreshMcpServerToolsAction(
   integrationId: string,
 ): Promise<void> {
   const organisation = await getCurrentOrganisation();
-  await integrationService.refreshMcpServerTools(
-    organisation.id,
-    integrationId,
-  );
+  try {
+    await integrationService.refreshMcpServerTools(
+      organisation.id,
+      integrationId,
+    );
+  } catch (error) {
+    console.error(
+      `refreshMcpServerToolsAction failed for integration ${integrationId}:`,
+      error,
+    );
+    return;
+  }
   revalidatePath("/settings/integrations");
 }
 
