@@ -51,7 +51,7 @@ else's MCP server is briefly down).
 When `createMcpServer(organisationId, ...)` builds an org's tool server —
 as it already does for every run — it also loads that org's `mcp`-type
 Integrations and, from each one's cached tool list, registers one
-forwarding tool per discovered tool on Aperator's *own* in-process
+forwarding tool per discovered tool on Aperator's _own_ in-process
 `McpServer`. Each forwarding tool's handler does nothing but open a real
 MCP client to the remote server (`StreamableHTTPClientTransport`, real
 network transport — the first non-in-memory MCP client this codebase
@@ -61,7 +61,7 @@ and policy — see no change at all: it is still exactly one MCP client
 talking to exactly one server. This was chosen over the alternative (the
 runtime juggling multiple real MCP clients directly, one per connection)
 specifically because that alternative would mean grant-checking and
-policy-checking happening at *N* client boundaries instead of one — more
+policy-checking happening at _N_ client boundaries instead of one — more
 surface area for the exact kind of bypass CLAUDE.md §4.5's single
 enforcement chokepoint exists to prevent.
 
@@ -71,7 +71,7 @@ server's tools declare JSON Schema. Attempting a faithful conversion is
 fragile — any schema library chosen will eventually hit a shape it can't
 express — and unnecessary: the remote server is the authoritative
 validator for its own tool. Aperator's schema validation exists to protect
-*our* application boundary, which a pass-through schema still does (the
+_our_ application boundary, which a pass-through schema still does (the
 call still can't reach the remote server at all unless the name and
 top-level shape are plausible); the remote server validates the rest.
 
@@ -85,7 +85,7 @@ forward, a granted tool name is either (a) one of the fixed, reviewed
 `TOOL_REGISTRY` names — unchanged, still Zod-validated against a compile-time
 union — or (b) a namespaced discovered name, `mcp:<integrationId>:<remoteToolName>`,
 validated at grant-save time by checking it against that Integration's
-*currently cached* tool list rather than a compile-time enum. An agent can
+_currently cached_ tool list rather than a compile-time enum. An agent can
 only ever be granted a tool that genuinely exists on a connection its own
 organisation actually has.
 
@@ -148,6 +148,7 @@ adds a new tool.
 ## Discovery + proxy mechanism (runtime)
 
 New module, `lib/integrations/mcp/external-client.ts`:
+
 - `connectExternalMcpClient(url, token)` — real MCP SDK `Client`, real
   `StreamableHTTPClientTransport` (not `InMemoryTransport` — the first
   genuinely networked MCP client this codebase has), bearer token attached
@@ -160,7 +161,7 @@ registering the fixed tools it registers today: load the organisation's
 `mcp`-provider Integrations, and for each one, for each cached tool in
 `config.tools`, `register()` a forwarding tool named
 `mcp:<integrationId>:<remoteToolName>` — the namespace exists only so the
-name is unique inside *our* server's tool list; the handler calls
+name is unique inside _our_ server's tool list; the handler calls
 `connectExternalMcpClient` and calls the remote server using
 `remoteToolName` alone (the name it actually knows), returning whatever it
 responds with. If a specific connection can't be reached while
@@ -178,8 +179,8 @@ writes `mcp:<integrationId>:<remoteToolName>` as an `AgentTool.toolName`,
 exactly the same write path as any other tool grant today.
 
 Validation at save time (replacing the current single `TOOL_NAMES` Zod
-enum check): a submitted tool name is valid if it's in `TOOL_NAMES`, *or*
-it matches the `mcp:<integrationId>:<remoteToolName>` shape *and* that
+enum check): a submitted tool name is valid if it's in `TOOL_NAMES`, _or_
+it matches the `mcp:<integrationId>:<remoteToolName>` shape _and_ that
 exact `(integrationId, remoteToolName)` pair is currently present in that
 integration's cached tool list for this organisation. An agent can never be
 granted a tool from a connection that isn't this organisation's own.
@@ -219,7 +220,7 @@ the existing hardcoded list governing Aperator's own tools.
   correctly; one connection being unreachable doesn't affect a different
   connection's tools or the fixed built-in tools.
 - Grant validation: a discovered tool name validates only when it's
-  actually in that org's cached list; a name copied from a *different*
+  actually in that org's cached list; a name copied from a _different_
   org's connection is rejected.
 - Policy: a `readOnlyHint: true` discovered tool call executes directly; a
   `readOnlyHint: false`/absent one pauses for approval, creates a real
