@@ -535,11 +535,32 @@ export async function verifyWebhookSecret(
  * Validates via a live listTools() call before saving anything — a broken
  * URL or bad token fails here, at connect time, with a specific error,
  * never silently at first agent run.
+ *
+ * Also refuses to reuse an existing label. Unlike an OAuth provider (where
+ * "same account name" genuinely means "the same account, safe to refresh
+ * in place" — see connectOAuthAccount) or connectWebhookAccount (which
+ * already guards this exact case at its own call site), `label` here is a
+ * free-text string the user types with no external identity behind it.
+ * Two different servers both labeled "Notion" would otherwise collapse
+ * into upsertIntegration's same (organisationId, provider, name) row,
+ * silently repointing every agent already granted a tool from the first
+ * connection at a different remote endpoint and credential with zero
+ * warning.
  */
 export async function connectMcpServer(
   organisationId: string,
   input: { label: string; url: string; token: string },
 ) {
+  const existing = await integrationRepository.findIntegrationsByProvider(
+    organisationId,
+    MCP_PROVIDER,
+  );
+  if (existing.some((integration) => integration.name === input.label)) {
+    throw new Error(
+      `A connection named "${input.label}" already exists — disconnect it first or use a different label.`,
+    );
+  }
+
   const tools = await listExternalMcpTools(input.url, input.token);
   return integrationRepository.upsertIntegration(
     organisationId,

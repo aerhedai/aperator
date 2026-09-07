@@ -191,4 +191,35 @@ describe("mcp integration service", () => {
     );
     expect(found).toBeNull();
   });
+
+  it("refuses to connect a second server under a label that's already in use, without touching the first connection", async () => {
+    const first = await integrationService.connectMcpServer(organisationId, {
+      label: "Duplicate Label",
+      url: testServer.url,
+      token: TEST_TOKEN,
+    });
+
+    // Points at a URL that would fail if the live listTools() check ever
+    // ran — proving the label check happens *before* any network round
+    // trip, not just that the overall call eventually rejects.
+    await expect(
+      integrationService.connectMcpServer(organisationId, {
+        label: "Duplicate Label",
+        url: "http://127.0.0.1:1/mcp",
+        token: "a-completely-different-token",
+      }),
+    ).rejects.toThrow(/already exists/i);
+
+    // Exactly one row for this label — upsertIntegration's
+    // (organisationId, provider, name) unique constraint would otherwise
+    // have silently repointed the existing row at the new URL/token
+    // instead of creating a second one.
+    const saved = await prisma.integration.findMany({
+      where: { organisationId, provider: "mcp", name: "Duplicate Label" },
+    });
+    expect(saved).toHaveLength(1);
+    expect(saved[0]?.id).toBe(first.id);
+    const config = saved[0]?.config as { url: string };
+    expect(config.url).toBe(testServer.url);
+  });
 });
