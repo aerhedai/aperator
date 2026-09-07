@@ -7,7 +7,10 @@ import { DeleteEntityTypeDialog } from "@/components/entities/delete-entity-type
 import { EntityRecordTable } from "@/components/entities/entity-record-table";
 import * as entityRecordService from "@/lib/entities/entity-record-service";
 import * as entityTypeService from "@/lib/entities/entity-type-service";
-import { entityFieldsSchema, type EntityFieldConfig } from "@/lib/entities/schemas";
+import {
+  entityFieldsSchema,
+  type EntityFieldConfig,
+} from "@/lib/entities/schemas";
 import { getCurrentOrganisation } from "@/lib/organisations/current-organisation";
 
 export const dynamic = "force-dynamic";
@@ -17,9 +20,7 @@ export const dynamic = "force-dynamic";
 // the first field of any kind, and finally the record's own id.
 function pickLabelField(fields: EntityFieldConfig[]): string | null {
   return (
-    fields.find((f) => f.type !== "reference")?.name ??
-    fields[0]?.name ??
-    null
+    fields.find((f) => f.type !== "reference")?.name ?? fields[0]?.name ?? null
   );
 }
 

@@ -82,7 +82,12 @@ describe("formatRecordValue", () => {
       field({ name: "customer", type: "reference", recordType: "Customer" }),
       "cust_1",
       "GBP",
-      { customer: { entityTypeId: "et_customer", labels: { cust_1: "Acme Co" } } },
+      {
+        customer: {
+          entityTypeId: "et_customer",
+          labels: { cust_1: "Acme Co" },
+        },
+      },
     );
     expect(result).toEqual({
       kind: "reference",
@@ -138,7 +143,12 @@ describe("recordSearchText", () => {
     const text = recordSearchText(
       { name: "Order #1", customer: "cust_1" },
       fields,
-      { customer: { entityTypeId: "et_customer", labels: { cust_1: "Acme Co" } } },
+      {
+        customer: {
+          entityTypeId: "et_customer",
+          labels: { cust_1: "Acme Co" },
+        },
+      },
     );
     expect(text).toContain("acme co");
     expect(text).not.toContain("cust_1");

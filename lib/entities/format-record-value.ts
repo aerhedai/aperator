@@ -45,7 +45,8 @@ export function formatRecordValue(
     case "number":
       return {
         kind: "text",
-        text: typeof value === "number" ? value.toLocaleString() : String(value),
+        text:
+          typeof value === "number" ? value.toLocaleString() : String(value),
       };
     case "boolean":
       return { kind: "boolean", value: Boolean(value) };
