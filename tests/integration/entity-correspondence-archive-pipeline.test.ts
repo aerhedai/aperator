@@ -132,7 +132,7 @@ describe("entity_correspondence_archive pipeline", () => {
     expect(result.status).toBe("FAILED");
     const run = await prisma.agentRun.findUniqueOrThrow({
       where: { id: result.runId },
-      include: { steps: true },
+      include: { steps: { orderBy: { createdAt: "asc" } } },
     });
     expect(run.steps.at(-1)).toMatchObject({
       detail: expect.stringContaining("No matching reference token"),
@@ -156,7 +156,7 @@ describe("entity_correspondence_archive pipeline", () => {
     expect(result.status).toBe("FAILED");
     const run = await prisma.agentRun.findUniqueOrThrow({
       where: { id: result.runId },
-      include: { steps: true },
+      include: { steps: { orderBy: { createdAt: "asc" } } },
     });
     expect(run.steps.at(-1)).toMatchObject({
       detail: expect.stringContaining("not a valid regex"),
@@ -175,7 +175,7 @@ describe("entity_correspondence_archive pipeline", () => {
     expect(result.status).toBe("FAILED");
     const run = await prisma.agentRun.findUniqueOrThrow({
       where: { id: result.runId },
-      include: { steps: true },
+      include: { steps: { orderBy: { createdAt: "asc" } } },
     });
     expect(run.steps.at(-1)).toMatchObject({
       detail: expect.stringContaining('No Job record found for "9999"'),

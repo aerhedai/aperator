@@ -27,7 +27,12 @@ const MAX_AGENT_STEPS = 20;
 
 export interface RunResult {
   runId: string;
-  status: "COMPLETED" | "FAILED" | "WAITING_FOR_APPROVAL" | "CANCELLED";
+  status:
+    | "COMPLETED"
+    | "FAILED"
+    | "WAITING_FOR_APPROVAL"
+    | "WAITING_FOR_INPUT"
+    | "CANCELLED";
 }
 
 function escapeRegExp(text: string): string {
@@ -93,6 +98,11 @@ interface LoopContext {
   allowedTools: Set<string>;
   provider: AIProvider;
   mcpClient: Client;
+  // CHAT-mode agents don't have a "finished" state reachable by a plain
+  // text reply — a text-only response means "waiting for the human's next
+  // message," not "done." Everything else about the loop (tool calls,
+  // grants, policy checks) is identical either way.
+  pauseOnTextResponse?: boolean;
 }
 
 /**
@@ -142,6 +152,7 @@ async function runLoop(context: LoopContext): Promise<RunResult> {
     allowedTools,
     provider,
     mcpClient,
+    pauseOnTextResponse,
   } = context;
 
   for (let step = 0; step < MAX_AGENT_STEPS; step++) {
@@ -172,6 +183,21 @@ async function runLoop(context: LoopContext): Promise<RunResult> {
           "The model wrote its intended tool call as plain text instead of a real tool call, so nothing was actually executed. Try running this input again.",
         );
         return { runId, status: "FAILED" };
+      }
+
+      if (pauseOnTextResponse) {
+        messages.push({ role: "assistant", content: response.content });
+        await runRepository.saveMessages(
+          runId,
+          messages as unknown as Prisma.InputJsonValue,
+        );
+        await runRepository.markRunStatus(runId, "WAITING_FOR_INPUT");
+        await runRepository.addRunStep(
+          runId,
+          "AWAITING_INPUT",
+          response.content,
+        );
+        return { runId, status: "WAITING_FOR_INPUT" };
       }
 
       await runRepository.markRunStatus(runId, "COMPLETED", {
@@ -290,6 +316,10 @@ export async function runAgent(
   agent: Agent,
   input: string,
   provider: AIProvider,
+  // How many invoke_agent hops deep this run is — 0 for a normal top-level
+  // run, incremented by the invoke_agent tool itself for a delegated one.
+  // See lib/mcp/tools/invoke-agent.ts's MAX_INVOCATION_DEPTH.
+  invocationDepth = 0,
 ): Promise<RunResult> {
   const run = await runRepository.createRun(
     agent.organisationId,
@@ -304,6 +334,9 @@ export async function runAgent(
   const mcpClient = await connectMcpClient(
     agent.organisationId,
     agent.actionIntegrationId,
+    agent.id,
+    invocationDepth,
+    provider,
   );
 
   try {
@@ -325,6 +358,7 @@ export async function runAgent(
       allowedTools,
       provider,
       mcpClient,
+      pauseOnTextResponse: agent.executionMode === "CHAT",
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error.";
@@ -336,6 +370,11 @@ export async function runAgent(
   } finally {
     await mcpClient.close();
   }
+}
+
+async function loadSnapshotMessages(runId: string): Promise<AIMessage[]> {
+  return ((await prisma.agentRun.findUniqueOrThrow({ where: { id: runId } }))
+    .messages ?? []) as unknown as AIMessage[];
 }
 
 /**
@@ -405,6 +444,9 @@ export async function resumeRun(
   const mcpClient = await connectMcpClient(
     organisationId,
     run.agent.actionIntegrationId,
+    run.agent.id,
+    0,
+    provider,
   );
 
   try {
@@ -464,9 +506,7 @@ export async function resumeRun(
       await agentToolRepository.findToolNamesForAgent(run.agent.id),
     );
     const tools = await loadTools(mcpClient, allowedTools);
-    const messages = ((
-      await prisma.agentRun.findUniqueOrThrow({ where: { id: runId } })
-    ).messages ?? []) as unknown as AIMessage[];
+    const messages = await loadSnapshotMessages(runId);
 
     return await runLoop({
       runId,
@@ -477,6 +517,71 @@ export async function resumeRun(
       allowedTools,
       provider: provider ?? (await getAIProvider(organisationId)),
       mcpClient,
+      pauseOnTextResponse: run.agent.executionMode === "CHAT",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error.";
+    await runRepository.markRunStatus(runId, "FAILED", {
+      completedAt: new Date(),
+    });
+    await runRepository.addRunStep(runId, "RUN_FAILED", message);
+    return { runId, status: "FAILED" };
+  } finally {
+    await mcpClient.close();
+  }
+}
+
+/**
+ * Resumes a CHAT-mode run that's WAITING_FOR_INPUT after the human sends
+ * their next message — the chat analogue of resumeRun's approval-decision
+ * path, but there's no approval to decide and no held-back tool call to
+ * execute first: the snapshot is reloaded, the new message appended, and
+ * the loop re-entered directly with a fresh step budget (same "resumed runs
+ * get their own MAX_AGENT_STEPS" simplification as resumeRun).
+ */
+export async function continueChatRun(
+  organisationId: string,
+  runId: string,
+  humanMessage: string,
+  provider?: AIProvider,
+): Promise<RunResult> {
+  const run = await runRepository.findRunById(organisationId, runId);
+  if (!run || run.status !== "WAITING_FOR_INPUT") {
+    throw new Error("This chat is not waiting for a message.");
+  }
+  if (run.agent.executionMode !== "CHAT") {
+    throw new Error("This agent is not a chat agent.");
+  }
+
+  await runRepository.addRunStep(runId, "INPUT_RECEIVED", humanMessage);
+  await runRepository.markRunStatus(runId, "RUNNING");
+
+  const mcpClient = await connectMcpClient(
+    organisationId,
+    run.agent.actionIntegrationId,
+    run.agent.id,
+    0,
+    provider,
+  );
+
+  try {
+    const allowedTools = new Set(
+      await agentToolRepository.findToolNamesForAgent(run.agent.id),
+    );
+    const tools = await loadTools(mcpClient, allowedTools);
+    const messages = await loadSnapshotMessages(runId);
+    messages.push({ role: "user", content: humanMessage });
+
+    return await runLoop({
+      runId,
+      organisationId,
+      agentModel: run.agent.model,
+      messages,
+      tools,
+      allowedTools,
+      provider: provider ?? (await getAIProvider(organisationId)),
+      mcpClient,
+      pauseOnTextResponse: true,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error.";

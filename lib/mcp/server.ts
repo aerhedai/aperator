@@ -2,12 +2,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolCallback } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 
+import type { AIProvider } from "@/lib/ai/provider";
 import * as integrationService from "@/lib/integrations/integration-service";
 import { createCheckCalendarAvailabilityTool } from "@/lib/mcp/tools/check-calendar-availability";
 import { createCreateCalendarEventTool } from "@/lib/mcp/tools/create-calendar-event";
 import { createCreateFolderTool } from "@/lib/mcp/tools/create-folder";
 import { createCreateRecordTool } from "@/lib/mcp/tools/create-record";
 import { createFindRecordTool } from "@/lib/mcp/tools/find-record";
+import { createInvokeAgentTool } from "@/lib/mcp/tools/invoke-agent";
 import { createNotifyChannelTool } from "@/lib/mcp/tools/notify-channel";
 import { createPopulateTemplateTool } from "@/lib/mcp/tools/populate-template";
 import { createSaveFileTool } from "@/lib/mcp/tools/save-file";
@@ -58,10 +60,24 @@ interface ToolDefinition<
  * otherwise undefined, so that tool falls back to its own provider's
  * organisation default instead of failing. send_email is provider-agnostic
  * across Gmail/Outlook, so it matches either.
+ *
+ * callerAgentId identifies which agent this server instance's calls are
+ * made on behalf of — invoke_agent is the one tool that needs to know who
+ * is calling, to check its AgentInvocationGrant allow-list. Every other
+ * tool ignores it. invocationDepth is forwarded to invoke_agent's own
+ * recursion guard. aiProvider, if supplied, is the already-resolved
+ * AIProvider the calling run is itself using — invoke_agent reuses it
+ * rather than resolving its own, and falls back to resolving one itself
+ * only if it's omitted (see invoke-agent.ts). Named distinctly from the
+ * `provider` string below (an Integration.provider value, e.g. "gmail") —
+ * unrelated concepts that happen to share a common short name.
  */
 export async function createMcpServer(
   organisationId: string,
   actionIntegrationId?: string | null,
+  callerAgentId?: string,
+  invocationDepth = 0,
+  aiProvider?: AIProvider,
 ): Promise<McpServer> {
   const server = new McpServer({ name: "aperator-tools", version: "0.1.0" });
 
@@ -124,6 +140,16 @@ export async function createMcpServer(
   register(createCreateFolderTool(organisationId));
   register(createSaveFileTool(organisationId));
   register(createPopulateTemplateTool(organisationId));
+
+  // Orchestration
+  register(
+    createInvokeAgentTool(
+      organisationId,
+      callerAgentId,
+      invocationDepth,
+      aiProvider,
+    ),
+  );
 
   return server;
 }

@@ -33,6 +33,7 @@ const STEP_LABELS: Record<RunStepType, string> = {
   TOOL_CALL: "Tool call",
   APPROVAL_REQUESTED: "Approval requested",
   APPROVAL_GRANTED: "Approval granted",
+  AWAITING_INPUT: "Waiting for the next message",
   RUN_COMPLETED: "Run completed",
   RUN_FAILED: "Run failed",
   RUN_CANCELLED: "Run cancelled",

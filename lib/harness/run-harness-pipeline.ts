@@ -34,6 +34,9 @@ export async function runHarnessPipeline(
   const mcpClient = await connectMcpClient(
     agent.organisationId,
     agent.actionIntegrationId,
+    agent.id,
+    0,
+    provider,
   );
 
   try {
