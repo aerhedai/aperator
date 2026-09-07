@@ -3,7 +3,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { AIProvider, AIResponse } from "@/lib/ai/provider";
 import { prisma } from "@/lib/db/prisma";
 import type { Agent, User } from "@/lib/generated/prisma/client";
-import { resumeRun, runAgent } from "@/lib/runtime/agent-runtime";
+import {
+  continueChatRun,
+  resumeRun,
+  runAgent,
+} from "@/lib/runtime/agent-runtime";
 import { createRecord } from "@/tests/helpers/records";
 
 // Ollama isn't reachable from CI, so the runtime's loop logic — step
@@ -35,6 +39,7 @@ describe("agent runtime", () => {
   const organisationId = "test-org-runtime";
   let agent: Agent;
   let restrictedAgent: Agent;
+  let chatAgent: Agent;
   let approver: User;
 
   beforeAll(async () => {
@@ -87,6 +92,18 @@ describe("agent runtime", () => {
     });
     await prisma.agentTool.create({
       data: { agentId: restrictedAgent.id, toolName: "send_email" },
+    });
+
+    chatAgent = await prisma.agent.create({
+      data: {
+        organisationId,
+        name: "Chat Test Agent",
+        description: "Used to test CHAT-mode pause/resume.",
+        instructions: "Chat helpfully.",
+        model: "test-model",
+        status: "ACTIVE",
+        executionMode: "CHAT",
+      },
     });
 
     approver = await prisma.user.create({
@@ -622,5 +639,118 @@ describe("agent runtime", () => {
     });
     const failedStep = run.steps.find((s) => s.stepType === "RUN_FAILED");
     expect(failedStep?.detail).toBe("Ollama is unreachable");
+  });
+
+  it("pauses a CHAT-mode agent for the next human message instead of completing", async () => {
+    const provider = scriptedProvider([
+      { content: "Hi there — how can I help?" },
+    ]);
+
+    const result = await runAgent(chatAgent, "Hello", provider);
+
+    expect(result.status).toBe("WAITING_FOR_INPUT");
+
+    const run = await prisma.agentRun.findUniqueOrThrow({
+      where: { id: result.runId },
+      include: { steps: { orderBy: { createdAt: "asc" } } },
+    });
+    expect(run.status).toBe("WAITING_FOR_INPUT");
+    expect(run.completedAt).toBeNull();
+    expect(run.steps.map((s) => s.stepType)).toEqual([
+      "INPUT_RECEIVED",
+      "AGENT_DECISION",
+      "AWAITING_INPUT",
+    ]);
+    expect(run.steps.at(-1)?.detail).toBe("Hi there — how can I help?");
+
+    // The snapshot must include the assistant's own reply, not just the
+    // system/user turns, so the next human message continues the same
+    // conversation rather than losing what the agent just said.
+    const messages = run.messages as unknown as { role: string }[];
+    expect(messages.map((m) => m.role)).toEqual([
+      "system",
+      "user",
+      "assistant",
+    ]);
+  });
+
+  it("continueChatRun resumes a WAITING_FOR_INPUT run with the next human message appended", async () => {
+    const firstTurn = scriptedProvider([
+      { content: "Hi there — how can I help?" },
+    ]);
+    const paused = await runAgent(chatAgent, "Hello", firstTurn);
+    expect(paused.status).toBe("WAITING_FOR_INPUT");
+
+    const secondTurn = scriptedProvider([
+      {
+        content: "",
+        toolCalls: [
+          {
+            id: "call_0",
+            name: "find_record",
+            arguments: {
+              recordType: "Product",
+              field: "sku",
+              value: "TEST-WIDGET-A",
+            },
+          },
+        ],
+      },
+      { content: "Product A is in stock." },
+    ]);
+    // chatAgent isn't granted find_record — proves continueChatRun goes
+    // through the exact same grant-checking loop as a fresh run, not a
+    // stripped-down "resume" path that skips it.
+    await prisma.agentTool.create({
+      data: { agentId: chatAgent.id, toolName: "find_record" },
+    });
+
+    const resumed = await continueChatRun(
+      organisationId,
+      paused.runId,
+      "Is Product A in stock?",
+      secondTurn,
+    );
+
+    expect(resumed.status).toBe("WAITING_FOR_INPUT");
+
+    const run = await prisma.agentRun.findUniqueOrThrow({
+      where: { id: paused.runId },
+      include: { steps: { orderBy: { createdAt: "asc" } } },
+    });
+    expect(run.steps.map((s) => s.stepType)).toEqual([
+      "INPUT_RECEIVED",
+      "AGENT_DECISION",
+      "AWAITING_INPUT",
+      "INPUT_RECEIVED",
+      "AGENT_DECISION",
+      "TOOL_CALL",
+      "AGENT_DECISION",
+      "AWAITING_INPUT",
+    ]);
+    expect(run.steps.at(-1)?.detail).toBe("Product A is in stock.");
+
+    const messages = run.messages as unknown as { role: string }[];
+    expect(messages.map((m) => m.role)).toEqual([
+      "system",
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+    ]);
+
+    await prisma.agentTool.deleteMany({ where: { agentId: chatAgent.id } });
+  });
+
+  it("continueChatRun refuses a run that isn't waiting for input", async () => {
+    const provider = scriptedProvider([{ content: "Some reply." }]);
+    const run = await runAgent(agent, "A normal request", provider);
+    expect(run.status).toBe("COMPLETED");
+
+    await expect(
+      continueChatRun(organisationId, run.runId, "Are you still there?"),
+    ).rejects.toThrow(/not waiting for a message/i);
   });
 });

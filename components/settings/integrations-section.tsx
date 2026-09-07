@@ -5,8 +5,10 @@ import { useFormStatus } from "react-dom";
 import {
   disconnectAllAccountsAction,
   disconnectIntegrationAction,
-} from "@/app/(app)/settings/actions";
+  refreshMcpServerToolsAction,
+} from "@/app/(shell)/(app)/settings/actions";
 import { IntegrationIcon } from "@/components/settings/integration-icon";
+import { McpServerConnectForm } from "@/components/settings/mcp-server-connect-form";
 import { WebhookAccountForm } from "@/components/settings/webhook-account-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -177,6 +179,9 @@ function ConnectOrAddAccount({
   if (provider === "webhook") {
     return <WebhookAccountForm baseUrl={baseUrl} />;
   }
+  if (provider === "mcp") {
+    return <McpServerConnectForm />;
+  }
   return null;
 }
 
@@ -227,11 +232,24 @@ function ConfigureDialog({
               className="flex items-center justify-between rounded-md border border-border p-2 text-sm"
             >
               <span className="font-mono">{account.name}</span>
-              <form action={disconnectIntegrationAction.bind(null, account.id)}>
-                <Button type="submit" variant="outline" size="sm">
-                  Disconnect
-                </Button>
-              </form>
+              <div className="flex items-center gap-2">
+                {entry.provider === "mcp" && (
+                  <form
+                    action={refreshMcpServerToolsAction.bind(null, account.id)}
+                  >
+                    <Button type="submit" variant="outline" size="sm">
+                      Refresh tools
+                    </Button>
+                  </form>
+                )}
+                <form
+                  action={disconnectIntegrationAction.bind(null, account.id)}
+                >
+                  <Button type="submit" variant="outline" size="sm">
+                    Disconnect
+                  </Button>
+                </form>
+              </div>
             </div>
           ))}
         </div>

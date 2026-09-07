@@ -5,6 +5,11 @@ import * as integrationRepository from "@/lib/integrations/integration-repositor
 import { refreshAccessToken as refreshGmailAccessToken } from "@/lib/integrations/gmail/oauth";
 import type { GmailTokens } from "@/lib/integrations/gmail/oauth";
 import { refreshAccessToken as refreshGoogleAccessToken } from "@/lib/integrations/google/oauth-core";
+import { listExternalMcpTools } from "@/lib/integrations/mcp/external-client";
+import {
+  encodeRemoteToolName,
+  type DiscoveredMcpTool,
+} from "@/lib/integrations/mcp/tool-naming";
 import { refreshAccessToken as refreshMicrosoftAccessToken } from "@/lib/integrations/microsoft/oauth-core";
 import type { OAuthExchangeResult } from "@/lib/integrations/oauth-adapter";
 
@@ -19,6 +24,7 @@ const OUTLOOK_CALENDAR_PROVIDER = "outlook-calendar";
 const WEBHOOK_PROVIDER = "webhook";
 const GOOGLE_DRIVE_PROVIDER = "google-drive";
 const SHAREPOINT_PROVIDER = "sharepoint";
+export const MCP_PROVIDER = "mcp";
 
 interface AccessRefreshCredentials {
   accessToken: string;
@@ -523,4 +529,122 @@ export async function verifyWebhookSecret(
     return null;
   }
   return { organisationId: integration.organisationId };
+}
+
+/**
+ * Validates via a live listTools() call before saving anything — a broken
+ * URL or bad token fails here, at connect time, with a specific error,
+ * never silently at first agent run.
+ *
+ * Also refuses to reuse an existing label. Unlike an OAuth provider (where
+ * "same account name" genuinely means "the same account, safe to refresh
+ * in place" — see connectOAuthAccount) or connectWebhookAccount (which
+ * already guards this exact case at its own call site), `label` here is a
+ * free-text string the user types with no external identity behind it.
+ * Two different servers both labeled "Notion" would otherwise collapse
+ * into upsertIntegration's same (organisationId, provider, name) row,
+ * silently repointing every agent already granted a tool from the first
+ * connection at a different remote endpoint and credential with zero
+ * warning.
+ */
+export async function connectMcpServer(
+  organisationId: string,
+  input: { label: string; url: string; token: string },
+) {
+  const existing = await integrationRepository.findIntegrationsByProvider(
+    organisationId,
+    MCP_PROVIDER,
+  );
+  if (existing.some((integration) => integration.name === input.label)) {
+    throw new Error(
+      `A connection named "${input.label}" already exists — disconnect it first or use a different label.`,
+    );
+  }
+
+  const tools = await listExternalMcpTools(input.url, input.token);
+  return integrationRepository.upsertIntegration(
+    organisationId,
+    MCP_PROVIDER,
+    input.label,
+    {
+      // DiscoveredMcpTool[] is genuinely JSON-safe (plain strings, a
+      // nested plain object, a boolean-or-null) but not structurally
+      // provable as Prisma.InputJsonValue — same situation as
+      // connectOAuthAccount's config cast above.
+      config: {
+        url: input.url,
+        tools,
+        toolsRefreshedAt: new Date().toISOString(),
+      } as unknown as Prisma.InputJsonValue,
+      credentials: { token: input.token },
+    },
+  );
+}
+
+export async function refreshMcpServerTools(
+  organisationId: string,
+  integrationId: string,
+): Promise<void> {
+  const integration = await integrationRepository.findIntegrationById(
+    organisationId,
+    integrationId,
+  );
+  if (!integration || integration.provider !== MCP_PROVIDER) {
+    throw new Error("MCP server connection not found");
+  }
+  const url = (integration.config as { url: string }).url;
+  const token = integration.credentials?.token as string | undefined;
+  if (!token) {
+    throw new Error("This connection has no saved token");
+  }
+  const tools = await listExternalMcpTools(url, token);
+  await integrationRepository.upsertIntegration(
+    organisationId,
+    MCP_PROVIDER,
+    integration.name,
+    {
+      config: {
+        url,
+        tools,
+        toolsRefreshedAt: new Date().toISOString(),
+      } as unknown as Prisma.InputJsonValue,
+      credentials: { token },
+    },
+  );
+}
+
+/**
+ * The one place a discovered tool is looked up by (integrationId,
+ * remoteToolName) — used by policy-engine.ts's approval-gate check and
+ * agent-service.ts's grant validation alike, so both always agree on
+ * exactly which tools genuinely exist for this organisation right now.
+ * Scoped by organisationId at the repository layer — an id belonging to a
+ * different organisation's connection can never match here.
+ *
+ * `remoteToolName` here is whatever `parseMcpToolName` returned — for most
+ * tools that's the real remote name unchanged, but a very long remote name
+ * gets truncated+hashed by `encodeRemoteToolName` when the full
+ * `mcp__<id>__<name>` string would exceed the 64-character limit
+ * Gemini/OpenAI enforce (see tool-naming.ts). Matching by re-encoding each
+ * cached tool's real name the same way — rather than comparing raw
+ * `tool.name` — is what keeps that case working end to end instead of
+ * silently 404ing every long-named tool.
+ */
+export async function findMcpTool(
+  organisationId: string,
+  integrationId: string,
+  remoteToolName: string,
+): Promise<DiscoveredMcpTool | null> {
+  const integration = await integrationRepository.findIntegrationById(
+    organisationId,
+    integrationId,
+  );
+  if (!integration || integration.provider !== MCP_PROVIDER) return null;
+  const tools = (integration.config as { tools?: DiscoveredMcpTool[] }).tools;
+  return (
+    tools?.find(
+      (tool) =>
+        encodeRemoteToolName(integrationId, tool.name) === remoteToolName,
+    ) ?? null
+  );
 }

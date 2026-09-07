@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { removeWorkflowMemberAction } from "@/app/(app)/workflows/[id]/actions";
+import { removeWorkflowMemberAction } from "@/app/(shell)/(app)/workflows/[id]/actions";
 import { AgentStatusBadge } from "@/components/agents/agent-status-badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";

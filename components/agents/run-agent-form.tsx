@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
-import type { RunAgentFormState } from "@/app/(app)/agents/[id]/actions";
+import type { RunAgentFormState } from "@/app/(shell)/(app)/agents/[id]/actions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 

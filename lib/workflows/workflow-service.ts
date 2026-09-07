@@ -1,9 +1,11 @@
 import * as agentRepository from "@/lib/agents/agent-repository";
-import type {
-  WorkflowAgentRole,
-  WorkflowTriggerType,
+import {
+  Prisma,
+  type WorkflowAgentRole,
+  type WorkflowTriggerType,
 } from "@/lib/generated/prisma/client";
 import * as integrationRepository from "@/lib/integrations/integration-repository";
+import { EMAIL_TRIGGER_PROVIDERS } from "@/lib/workflows/email-trigger-providers";
 import type { WorkflowInput } from "@/lib/workflows/schemas";
 import * as workflowRepository from "@/lib/workflows/workflow-repository";
 
@@ -12,11 +14,7 @@ import * as workflowRepository from "@/lib/workflows/workflow-repository";
 // check. WEBHOOK has no generic fallback (there's no non-account-specific
 // webhook URL), so it's required; EMAIL still allows null (the org-wide
 // default email account, today's only behavior for email-triggered
-// workflows). EMAIL accepts either gmail or outlook — "send/receive
-// email" is one concept to a business regardless of which provider backs
-// it, same reasoning as getValidEmailAccessToken's own provider-agnostic
-// resolution.
-export const EMAIL_TRIGGER_PROVIDERS = ["gmail", "outlook"] as const;
+// workflows).
 const TRIGGER_INTEGRATION_PROVIDERS: Record<WorkflowTriggerType, string[]> = {
   EMAIL: [...EMAIL_TRIGGER_PROVIDERS],
   WEBHOOK: ["webhook"],
@@ -223,4 +221,32 @@ export async function deactivateWorkflow(
     throw new Error("Workflow not found");
   }
   return workflowRepository.setWorkflowStatus(workflowId, "DRAFT");
+}
+
+export async function deleteWorkflow(
+  organisationId: string,
+  id: string,
+): Promise<boolean> {
+  try {
+    const { count } = await workflowRepository.deleteWorkflow(
+      organisationId,
+      id,
+    );
+    return count > 0;
+  } catch (error) {
+    // P2003: foreign key constraint failed — this workflow still has
+    // WorkflowAgent membership rows (WorkflowAgent.workflow is
+    // deliberately not cascaded, see workflow-repository.ts). Removing
+    // its members first, or archiving it, both work; deleting it outright
+    // while agents are still attached does not.
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2003"
+    ) {
+      throw new Error(
+        "This workflow still has agents assigned — remove them first, or archive the workflow instead.",
+      );
+    }
+    throw error;
+  }
 }

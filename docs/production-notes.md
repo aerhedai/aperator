@@ -186,6 +186,54 @@ which have side effects) worth building once it can be scoped to read-only
 tools behind real per-organisation authentication, with `send_email`
 deliberately kept off whatever gets exposed.
 
+## External MCP server connections (v1 gaps)
+
+Organisations can now connect an external MCP server by URL and bearer
+token (`lib/integrations/mcp/`, `provider: "mcp"` on `Integration`) and
+grant its discovered tools to agents with no code written per tool. Real,
+deliberate v1 gaps worth knowing before this is leaned on further:
+
+- **Bearer-token/API-key auth only — no OAuth 2.1 dynamic client
+  registration.** Covers most hosted MCP servers available today, but a
+  server that requires the emerging MCP authorization spec's DCR flow
+  isn't reachable yet. Documented in the design spec as explicitly out of
+  scope for v1, not an oversight.
+- **No connection pooling.** Each proxied tool call
+  (`lib/integrations/mcp/external-client.ts`) opens a fresh
+  `StreamableHTTPClientTransport` connection to the remote server, does
+  its work, and closes it — a full connect-handshake per call, not just
+  per run. Simple and correct; the cost is real network latency on every
+  single call to an external MCP tool, which would matter if one becomes
+  hot-path for a business.
+- **Tool lists are cached, not live.** `Integration.config.tools` is
+  populated at connect time and only refreshed by an explicit "Refresh
+  tools" action — never re-checked during an agent run. If a remote server
+  changes a tool's shape or removes one entirely, Aperator keeps
+  forwarding calls against the stale cached schema until someone manually
+  refreshes; a call to a since-removed tool fails at call time as an
+  ordinary `FAILED` `ToolCall`, not earlier.
+- **Untrusted remote tool descriptions reach the model directly.** A
+  connected server's own `name`/`description` text for its tools flows
+  straight into a granted agent's available-tools list — it is not
+  sanitized, reviewed, or diffed against what a human saw at connect time
+  beyond that one-time glance. This is a real prompt-injection-adjacent
+  surface (a compromised or malicious remote server could word a tool's
+  description to try to manipulate the model calling it). Mitigated, not
+  eliminated: reaching it requires both an explicit organisation-level
+  connection _and_ an explicit per-agent tool grant — nothing is exposed
+  to an agent that wasn't deliberately pointed at that specific tool.
+- **No SSRF hardening on the connection URL.** Connecting a server accepts
+  any URL an org member supplies — no scheme restriction, no
+  private-IP/localhost block. An authenticated org member could use the
+  connect-time `listTools()` call (or its error text) to probe internal
+  network hosts reachable from the server. Accepted as a v1 gap rather
+  than blocked: doing it correctly needs private-IP-literal detection,
+  DNS-rebinding consideration, and an env-gated exception for local
+  development and this feature's own test fixtures (which deliberately
+  connect to `http://127.0.0.1`) — more than fit in the same pass as the
+  core feature. Flagged here as the next thing to harden before this
+  feature is exposed to untrusted or lower-trust organisations.
+
 ## Phase C: hosting, database, and a real production Ollama path
 
 Deployed at https://aperator.com (Vercel, GitHub-connected — pushes to

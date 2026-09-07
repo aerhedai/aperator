@@ -27,7 +27,12 @@ const MAX_AGENT_STEPS = 20;
 
 export interface RunResult {
   runId: string;
-  status: "COMPLETED" | "FAILED" | "WAITING_FOR_APPROVAL" | "CANCELLED";
+  status:
+    | "COMPLETED"
+    | "FAILED"
+    | "WAITING_FOR_APPROVAL"
+    | "WAITING_FOR_INPUT"
+    | "CANCELLED";
 }
 
 function escapeRegExp(text: string): string {
@@ -93,6 +98,11 @@ interface LoopContext {
   allowedTools: Set<string>;
   provider: AIProvider;
   mcpClient: Client;
+  // CHAT-mode agents don't have a "finished" state reachable by a plain
+  // text reply — a text-only response means "waiting for the human's next
+  // message," not "done." Everything else about the loop (tool calls,
+  // grants, policy checks) is identical either way.
+  pauseOnTextResponse?: boolean;
 }
 
 /**
@@ -142,6 +152,7 @@ async function runLoop(context: LoopContext): Promise<RunResult> {
     allowedTools,
     provider,
     mcpClient,
+    pauseOnTextResponse,
   } = context;
 
   for (let step = 0; step < MAX_AGENT_STEPS; step++) {
@@ -174,6 +185,21 @@ async function runLoop(context: LoopContext): Promise<RunResult> {
         return { runId, status: "FAILED" };
       }
 
+      if (pauseOnTextResponse) {
+        messages.push({ role: "assistant", content: response.content });
+        await runRepository.saveMessages(
+          runId,
+          messages as unknown as Prisma.InputJsonValue,
+        );
+        await runRepository.markRunStatus(runId, "WAITING_FOR_INPUT");
+        await runRepository.addRunStep(
+          runId,
+          "AWAITING_INPUT",
+          response.content,
+        );
+        return { runId, status: "WAITING_FOR_INPUT" };
+      }
+
       await runRepository.markRunStatus(runId, "COMPLETED", {
         completedAt: new Date(),
       });
@@ -202,7 +228,7 @@ async function runLoop(context: LoopContext): Promise<RunResult> {
         continue;
       }
 
-      if (requiresApprovalBeforeExecution(call.name)) {
+      if (await requiresApprovalBeforeExecution(call.name, organisationId)) {
         // Gated *before* execution — this tool mutates external,
         // customer-visible state, and approving after the fact can't
         // un-send an email. The assistant message above already recorded
@@ -290,6 +316,10 @@ export async function runAgent(
   agent: Agent,
   input: string,
   provider: AIProvider,
+  // How many invoke_agent hops deep this run is — 0 for a normal top-level
+  // run, incremented by the invoke_agent tool itself for a delegated one.
+  // See lib/mcp/tools/invoke-agent.ts's MAX_INVOCATION_DEPTH.
+  invocationDepth = 0,
 ): Promise<RunResult> {
   const run = await runRepository.createRun(
     agent.organisationId,
@@ -304,6 +334,9 @@ export async function runAgent(
   const mcpClient = await connectMcpClient(
     agent.organisationId,
     agent.actionIntegrationId,
+    agent.id,
+    invocationDepth,
+    provider,
   );
 
   try {
@@ -325,6 +358,7 @@ export async function runAgent(
       allowedTools,
       provider,
       mcpClient,
+      pauseOnTextResponse: agent.executionMode === "CHAT",
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error.";
@@ -336,6 +370,13 @@ export async function runAgent(
   } finally {
     await mcpClient.close();
   }
+}
+
+export async function loadSnapshotMessages(
+  runId: string,
+): Promise<AIMessage[]> {
+  return ((await prisma.agentRun.findUniqueOrThrow({ where: { id: runId } }))
+    .messages ?? []) as unknown as AIMessage[];
 }
 
 /**
@@ -405,6 +446,9 @@ export async function resumeRun(
   const mcpClient = await connectMcpClient(
     organisationId,
     run.agent.actionIntegrationId,
+    run.agent.id,
+    0,
+    provider,
   );
 
   try {
@@ -464,9 +508,7 @@ export async function resumeRun(
       await agentToolRepository.findToolNamesForAgent(run.agent.id),
     );
     const tools = await loadTools(mcpClient, allowedTools);
-    const messages = ((
-      await prisma.agentRun.findUniqueOrThrow({ where: { id: runId } })
-    ).messages ?? []) as unknown as AIMessage[];
+    const messages = await loadSnapshotMessages(runId);
 
     return await runLoop({
       runId,
@@ -477,6 +519,7 @@ export async function resumeRun(
       allowedTools,
       provider: provider ?? (await getAIProvider(organisationId)),
       mcpClient,
+      pauseOnTextResponse: run.agent.executionMode === "CHAT",
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error.";
@@ -488,4 +531,129 @@ export async function resumeRun(
   } finally {
     await mcpClient.close();
   }
+}
+
+/**
+ * The synchronous half of resuming a WAITING_FOR_INPUT run: validates,
+ * echoes the human's message into the audit trail, and marks the run
+ * RUNNING — split out from continueChatRun so a caller that wants to defer
+ * the actual model turn (see runChatTurn) can still make the human's own
+ * message and the RUNNING status visible to a client immediately, before
+ * the slower part even starts.
+ */
+export async function recordChatTurnStart(
+  organisationId: string,
+  runId: string,
+  humanMessage: string,
+): Promise<Agent> {
+  const run = await runRepository.findRunById(organisationId, runId);
+  if (!run || run.status !== "WAITING_FOR_INPUT") {
+    throw new Error("This chat is not waiting for a message.");
+  }
+  if (run.agent.executionMode !== "CHAT") {
+    throw new Error("This agent is not a chat agent.");
+  }
+
+  await runRepository.addRunStep(runId, "INPUT_RECEIVED", humanMessage);
+  await runRepository.markRunStatus(runId, "RUNNING");
+  return run.agent;
+}
+
+/**
+ * Runs a CHAT-mode agent's turn against an already-RUNNING run and an
+ * explicit message array — the one piece shared by starting a brand new
+ * chat (messages = [system, user]) and continuing a paused one (messages =
+ * the reloaded snapshot with the new human turn appended, see
+ * continueChatRun). Always pauses on a text-only reply rather than
+ * completing (pauseOnTextResponse: true) — a CHAT-mode run's only other
+ * exits are FAILED/CANCELLED, never COMPLETED.
+ */
+export async function runChatTurn(
+  organisationId: string,
+  runId: string,
+  agent: Agent,
+  messages: AIMessage[],
+  provider?: AIProvider,
+): Promise<RunResult> {
+  const mcpClient = await connectMcpClient(
+    organisationId,
+    agent.actionIntegrationId,
+    agent.id,
+    0,
+    provider,
+  );
+
+  try {
+    const allowedTools = new Set(
+      await agentToolRepository.findToolNamesForAgent(agent.id),
+    );
+    const tools = await loadTools(mcpClient, allowedTools);
+
+    return await runLoop({
+      runId,
+      organisationId,
+      agentModel: agent.model,
+      messages,
+      tools,
+      allowedTools,
+      provider: provider ?? (await getAIProvider(organisationId)),
+      mcpClient,
+      pauseOnTextResponse: true,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error.";
+    await runRepository.markRunStatus(runId, "FAILED", {
+      completedAt: new Date(),
+    });
+    await runRepository.addRunStep(runId, "RUN_FAILED", message);
+    return { runId, status: "FAILED" };
+  } finally {
+    await mcpClient.close();
+  }
+}
+
+/**
+ * Creates a brand new CHAT-mode run and records its first human message —
+ * the "starting a chat" analogue of recordChatTurnStart, used the same way:
+ * a caller that wants to defer the model turn (see runChatTurn) can make
+ * the new run visible to a client immediately, before the slower part
+ * starts.
+ */
+export async function beginNewChatRun(
+  agent: Agent,
+  input: string,
+): Promise<string> {
+  const run = await runRepository.createRun(
+    agent.organisationId,
+    agent.id,
+    input,
+  );
+  await runRepository.markRunStatus(run.id, "RUNNING", {
+    startedAt: new Date(),
+  });
+  await runRepository.addRunStep(run.id, "INPUT_RECEIVED", input);
+  return run.id;
+}
+
+/**
+ * Resumes a CHAT-mode run that's WAITING_FOR_INPUT after the human sends
+ * their next message — the chat analogue of resumeRun's approval-decision
+ * path, but there's no approval to decide and no held-back tool call to
+ * execute first: the snapshot is reloaded, the new message appended, and
+ * the loop re-entered directly with a fresh step budget (same "resumed runs
+ * get their own MAX_AGENT_STEPS" simplification as resumeRun). Composes
+ * recordChatTurnStart + runChatTurn — callers that need the two halves on
+ * different sides of a response boundary (see app/(shell)/chat/actions.ts)
+ * call those directly instead.
+ */
+export async function continueChatRun(
+  organisationId: string,
+  runId: string,
+  humanMessage: string,
+  provider?: AIProvider,
+): Promise<RunResult> {
+  const agent = await recordChatTurnStart(organisationId, runId, humanMessage);
+  const messages = await loadSnapshotMessages(runId);
+  messages.push({ role: "user", content: humanMessage });
+  return runChatTurn(organisationId, runId, agent, messages, provider);
 }

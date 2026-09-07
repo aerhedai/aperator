@@ -47,6 +47,10 @@
   --color-marketing-ink-foreground: var(--marketing-ink-foreground);
   --color-marketing-amber: var(--marketing-amber);
   --color-marketing-amber-foreground: var(--marketing-amber-foreground);
+  --color-app-accent: var(--app-accent);
+  --color-app-accent-foreground: var(--app-accent-foreground);
+  --color-app-accent-soft: var(--app-accent-soft);
+  --color-app-accent-soft-foreground: var(--app-accent-soft-foreground);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -107,6 +111,16 @@
   --marketing-ink-foreground: oklch(0.984 0.003 247.858);
   --marketing-amber: oklch(0.72 0.15 70);
   --marketing-amber-foreground: oklch(0.15 0.045 265.755);
+
+  /* App-only warm accent — the sidebar's active state and a handful of
+     "look here" touches (the pending-approvals badge). A deliberate change
+     from the app previously avoiding amber entirely and reserving it for
+     marketing: kept as its own token rather than reusing --marketing-amber,
+     so the two can still diverge independently later. */
+  --app-accent: oklch(0.68 0.16 45);
+  --app-accent-foreground: oklch(0.984 0.003 247.858);
+  --app-accent-soft: oklch(0.94 0.045 50);
+  --app-accent-soft-foreground: oklch(0.4 0.13 40);
 }
 
 .dark {
@@ -145,6 +159,10 @@
   --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.984 0.003 247.858);
+  --app-accent: oklch(0.7 0.15 45);
+  --app-accent-foreground: oklch(0.129 0.042 264.695);
+  --app-accent-soft: oklch(0.33 0.06 45);
+  --app-accent-soft-foreground: oklch(0.85 0.1 55);
 }
 
 @layer base {

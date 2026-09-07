@@ -96,6 +96,13 @@ export const TOOL_REGISTRY = [
     description:
       "Fill a business's .docx template with real data and save the result to their connected storage.",
   },
+  {
+    name: "invoke_agent",
+    group: "Orchestration",
+    label: "Invoke agent",
+    description:
+      "Delegate a task to another agent this one has been explicitly granted access to invoke.",
+  },
 ] as const;
 
 export type ToolName = (typeof TOOL_REGISTRY)[number]["name"];
@@ -108,6 +115,7 @@ export const TOOL_GROUPS = [
   "Communication",
   "Calendar",
   "Files",
+  "Orchestration",
 ] as const;
 
 export const TOOL_NAMES = TOOL_REGISTRY.map((t) => t.name) as [
