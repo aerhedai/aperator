@@ -1115,30 +1115,36 @@ describe("mcp proxy tools", () => {
     }
   });
 
-  it("skips only the unreachable connection's tools, leaving built-in tools intact", async () => {
+  it("skips only a malformed connection's tools, leaving built-in tools and other connections intact", async () => {
     await integrationService.connectMcpServer(organisationId, {
       label: "Test Server",
       url: testServer.url,
       token: TEST_TOKEN,
     });
-    // A second, connected-then-abandoned server whose URL no longer
-    // resolves to anything reachable.
-    const deadIntegration = await integrationService.connectMcpServer(
-      organisationId,
-      { label: "Dead Server", url: testServer.url, token: TEST_TOKEN },
-    );
-    await testServer.close();
+    // Registration reads each connection's *cached* tool list (never a
+    // live network call — see the Global Constraints), so the failure
+    // this guards against is a malformed cache row, not a server that
+    // happens to be unreachable right now: a row with no `tools` array at
+    // all (predates this feature's expected config shape, or corrupted)
+    // makes the `for (const remoteTool of config.tools)` loop throw for
+    // that one connection only.
+    await prisma.integration.create({
+      data: {
+        organisationId,
+        provider: "mcp",
+        name: "Malformed Connection",
+        config: {},
+        credentials: null,
+      },
+    });
 
     const client = await connectInProcessClient(organisationId);
     try {
       const { tools } = await client.listTools();
       expect(tools.some((t) => t.name === "find_record")).toBe(true);
-      expect(
-        tools.some((t) => t.name.startsWith(`mcp:${deadIntegration.id}:`)),
-      ).toBe(false);
+      expect(tools.some((t) => t.name.startsWith("mcp:"))).toBe(true);
     } finally {
       await client.close();
-      testServer = await startTestMcpServer();
     }
   });
 });
@@ -1977,8 +1983,10 @@ at line 155 (`gmailIntegrations?: { id: string; name: string }[];`) — add
 ```typescript
 // components/agents/agent-form.tsx
 // Add to the imports at the top of the file:
-import { buildMcpToolName } from "@/lib/integrations/mcp/tool-naming";
-import type { DiscoveredMcpTool } from "@/lib/integrations/mcp/tool-naming";
+import {
+  buildMcpToolName,
+  type DiscoveredMcpTool,
+} from "@/lib/integrations/mcp/tool-naming";
 
 // Change the destructuring at line 137-145 from:
 //   export function AgentForm({

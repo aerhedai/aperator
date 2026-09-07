@@ -111,7 +111,7 @@ export async function gateAndExecuteTool(params: {
     return { status: "disallowed", error };
   }
 
-  if (requiresApprovalBeforeExecution(name)) {
+  if (await requiresApprovalBeforeExecution(name, organisationId)) {
     const reason = `${name} requires human approval before it runs.`;
     await runRepository.markRunStatus(runId, "WAITING_FOR_APPROVAL");
     await runRepository.addRunStep(runId, "APPROVAL_REQUESTED", reason);

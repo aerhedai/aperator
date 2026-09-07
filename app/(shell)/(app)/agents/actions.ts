@@ -85,10 +85,17 @@ export async function createAgentAction(
   }
 
   const organisation = await getCurrentOrganisation();
-  await agentService.createAgent(organisation.id, {
-    ...parsed.data,
-    pipelineConfig: validated.config,
-  });
+  try {
+    await agentService.createAgent(organisation.id, {
+      ...parsed.data,
+      pipelineConfig: validated.config,
+    });
+  } catch (error) {
+    if (error instanceof agentService.ToolGrantError) {
+      return { fieldErrors: { toolNames: [error.message] } };
+    }
+    throw error;
+  }
   redirect("/agents");
 }
 
@@ -116,7 +123,10 @@ export async function updateAgentAction(
       ...parsed.data,
       pipelineConfig: validated.config,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof agentService.ToolGrantError) {
+      return { fieldErrors: { toolNames: [error.message] } };
+    }
     return { error: "Agent not found." };
   }
   redirect(`/agents/${agentId}`);

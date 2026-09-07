@@ -1,6 +1,9 @@
 // Deterministic, application-code policy checks — the LLM recommends an
 // action, this decides whether it's actually permitted (CLAUDE.md §4.6).
 
+import * as integrationService from "@/lib/integrations/integration-service";
+import { parseMcpToolName } from "@/lib/integrations/mcp/tool-naming";
+
 export type PolicyDecision = "ALLOW" | "DENY" | "REQUIRE_APPROVAL";
 
 export interface PolicyResult {
@@ -34,8 +37,28 @@ const REQUIRES_APPROVAL_BEFORE_EXECUTION = new Set([
   "create_calendar_event",
 ]);
 
-export function requiresApprovalBeforeExecution(toolName: string): boolean {
-  return REQUIRES_APPROVAL_BEFORE_EXECUTION.has(toolName);
+export async function requiresApprovalBeforeExecution(
+  toolName: string,
+  organisationId: string,
+): Promise<boolean> {
+  if (REQUIRES_APPROVAL_BEFORE_EXECUTION.has(toolName)) return true;
+
+  const parsed = parseMcpToolName(toolName);
+  if (!parsed) return false;
+
+  const tool = await integrationService.findMcpTool(
+    organisationId,
+    parsed.integrationId,
+    parsed.remoteToolName,
+  );
+  // Not found (disconnected, stale grant, cache mismatch) or not
+  // explicitly marked read-only — fail closed, require approval. A
+  // readOnlyHint is an unverified claim from the remote server itself
+  // (the MCP spec's own docs warn clients not to make trust decisions
+  // based on it) — trusting it here only ever *relaxes* an additional
+  // safety net (human approval), never grants access that wasn't already
+  // explicitly given via an AgentTool row.
+  return tool?.readOnlyHint !== true;
 }
 
 // Post-execution policy: evaluated on a tool's result, for tools with no

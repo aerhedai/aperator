@@ -3,6 +3,9 @@ import * as agentToolRepository from "@/lib/agents/agent-tool-repository";
 import type { AgentInput } from "@/lib/agents/schemas";
 import { Prisma, type AgentStatus } from "@/lib/generated/prisma/client";
 import * as integrationRepository from "@/lib/integrations/integration-repository";
+import * as integrationService from "@/lib/integrations/integration-service";
+import { parseMcpToolName } from "@/lib/integrations/mcp/tool-naming";
+import { TOOL_NAMES } from "@/lib/mcp/tool-registry";
 
 export function listAgents(organisationId: string) {
   return agentRepository.findAgentsByOrganisation(organisationId);
@@ -43,9 +46,50 @@ async function validateActionIntegration(
   }
 }
 
+// A distinct error type — not just a distinctively-worded Error — so
+// callers (app/(shell)/(app)/agents/actions.ts) can tell "this tool grant
+// doesn't exist" apart from other failure modes (most importantly
+// updateAgent's own "Agent not found" case below) with an `instanceof`
+// check rather than matching on message text, which would silently break
+// the moment either message's wording changed.
+export class ToolGrantError extends Error {}
+
+// Every granted tool name must be either a fixed built-in tool
+// (lib/mcp/tool-registry.ts) or a tool this organisation's own connected
+// MCP server actually reports having (lib/integrations/mcp/tool-naming.ts
+// + findMcpTool) — checked here, before anything is written, so a
+// loosened Zod schema (any non-empty string, see schemas.ts) can never by
+// itself let an agent be granted a tool name that isn't real, including
+// one naming a different organisation's MCP connection.
+async function validateToolGrants(
+  organisationId: string,
+  toolNames: string[],
+): Promise<void> {
+  for (const toolName of toolNames) {
+    if ((TOOL_NAMES as readonly string[]).includes(toolName)) continue;
+
+    const parsed = parseMcpToolName(toolName);
+    if (!parsed) {
+      throw new ToolGrantError(`"${toolName}" is not a valid tool.`);
+    }
+
+    const tool = await integrationService.findMcpTool(
+      organisationId,
+      parsed.integrationId,
+      parsed.remoteToolName,
+    );
+    if (!tool) {
+      throw new ToolGrantError(
+        `"${toolName}" does not exist on any of this organisation's connected MCP servers.`,
+      );
+    }
+  }
+}
+
 export async function createAgent(organisationId: string, input: AgentInput) {
   const { toolNames, ...agentColumns } = input;
   await validateActionIntegration(organisationId, input.actionIntegrationId);
+  await validateToolGrants(organisationId, toolNames);
   const agent = await agentRepository.createAgent(organisationId, agentColumns);
   await agentToolRepository.setToolsForAgent(agent.id, toolNames);
   return agent;
@@ -58,6 +102,7 @@ export async function updateAgent(
 ) {
   const { toolNames, ...agentColumns } = input;
   await validateActionIntegration(organisationId, input.actionIntegrationId);
+  await validateToolGrants(organisationId, toolNames);
   const result = await agentRepository.updateAgent(
     organisationId,
     id,
