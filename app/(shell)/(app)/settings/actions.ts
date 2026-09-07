@@ -75,6 +75,58 @@ export async function createWebhookAccountAction(
   return { created: { integrationId: integration.id, secret } };
 }
 
+export type McpServerFormState = {
+  error?: string;
+  connected?: { integrationId: string; toolCount: number };
+};
+
+export async function createMcpServerAccountAction(
+  _prevState: McpServerFormState,
+  formData: FormData,
+): Promise<McpServerFormState> {
+  const label = formData.get("label");
+  const url = formData.get("url");
+  const token = formData.get("token");
+  if (typeof label !== "string" || label.trim().length === 0) {
+    return { error: "Label is required." };
+  }
+  if (typeof url !== "string" || url.trim().length === 0) {
+    return { error: "URL is required." };
+  }
+  if (typeof token !== "string" || token.trim().length === 0) {
+    return { error: "Bearer token is required." };
+  }
+
+  const organisation = await getCurrentOrganisation();
+  try {
+    const integration = await integrationService.connectMcpServer(
+      organisation.id,
+      { label: label.trim(), url: url.trim(), token: token.trim() },
+    );
+    const toolCount = (integration.config as { tools: unknown[] }).tools.length;
+    revalidatePath("/settings/integrations");
+    return { connected: { integrationId: integration.id, toolCount } };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? `Couldn't connect: ${error.message}`
+          : "Couldn't connect to that MCP server.",
+    };
+  }
+}
+
+export async function refreshMcpServerToolsAction(
+  integrationId: string,
+): Promise<void> {
+  const organisation = await getCurrentOrganisation();
+  await integrationService.refreshMcpServerTools(
+    organisation.id,
+    integrationId,
+  );
+  revalidatePath("/settings/integrations");
+}
+
 export type BusinessProfileFormState = {
   error?: string;
   fieldErrors?: Record<string, string[]>;
