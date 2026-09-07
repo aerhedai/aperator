@@ -32,7 +32,13 @@ const SEPARATOR = "__";
 // dropped or left to exceed the limit.
 export const MAX_TOOL_NAME_LENGTH = 64;
 
-const DISALLOWED_CHARS_REGEX = /[^A-Za-z0-9._-]/g;
+// Excludes "." even though MCP and Gemini both allow it: OpenAI-compatible
+// function-calling (which OpenRouter forwards tool names into verbatim,
+// see lib/ai/providers/openrouter-provider.ts) validates against
+// ^[a-zA-Z0-9_-]{1,64}$ — no dot. A remote tool named e.g. "jira.issue.get"
+// would otherwise reproduce the exact failure class this file exists to
+// prevent (a rejected tool list failing the whole run) on that provider.
+const DISALLOWED_CHARS_REGEX = /[^A-Za-z0-9_-]/g;
 
 function sanitize(value: string): string {
   return value.replace(DISALLOWED_CHARS_REGEX, "_");

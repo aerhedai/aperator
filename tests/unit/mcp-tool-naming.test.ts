@@ -19,7 +19,7 @@ describe("buildMcpToolName / parseMcpToolName", () => {
   it("never uses a colon — invalid for the MCP SDK's own tool-name validator and for Gemini/OpenAI-compatible function-calling APIs", () => {
     const name = buildMcpToolName("clx123abc", "search_pages");
     expect(name).not.toContain(":");
-    expect(name).toMatch(/^[A-Za-z0-9._-]+$/);
+    expect(name).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 
   it("preserves a remote tool name that itself contains a double underscore", () => {
@@ -30,9 +30,15 @@ describe("buildMcpToolName / parseMcpToolName", () => {
     });
   });
 
-  it("sanitizes characters outside the MCP-safe set (letters, digits, underscore, dash, dot)", () => {
+  it("sanitizes characters outside the safe set (letters, digits, underscore, dash)", () => {
     const name = buildMcpToolName("clx123abc", "search:pages/v1");
-    expect(name).toMatch(/^[A-Za-z0-9._-]+$/);
+    expect(name).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+
+  it("sanitizes a dot even though MCP/Gemini allow it — OpenAI-compatible function names don't", () => {
+    const name = buildMcpToolName("clx123abc", "jira.issue.get");
+    expect(name).not.toContain(".");
+    expect(name).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 
   it("returns null for a name with no mcp__ prefix", () => {
@@ -59,7 +65,7 @@ describe("buildMcpToolName / parseMcpToolName", () => {
     const name = buildMcpToolName(realisticCuid, veryLongRemoteName);
 
     expect(name.length).toBeLessThanOrEqual(MAX_TOOL_NAME_LENGTH);
-    expect(name).toMatch(/^[A-Za-z0-9._-]+$/);
+    expect(name).toMatch(/^[A-Za-z0-9_-]+$/);
 
     // Still round-trips: parsing back out yields a value that re-encodes
     // to itself (the property findMcpTool's re-encoding match relies on —
