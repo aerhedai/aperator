@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "RunStepType" ADD VALUE 'AWAITING_INPUT';

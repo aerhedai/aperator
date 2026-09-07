@@ -24,6 +24,11 @@ enum RunStatus {
   PENDING
   RUNNING
   WAITING_FOR_APPROVAL
+  // CHAT-mode only: the run produced a text-only response and is holding
+  // its message snapshot for the next human turn, same pause/resume
+  // mechanism as WAITING_FOR_APPROVAL (see AgentRun.messages) but never
+  // resolved by an Approval row — resolved by continueChatRun() instead.
+  WAITING_FOR_INPUT
   COMPLETED
   FAILED
   CANCELLED
@@ -35,6 +40,11 @@ enum RunStepType {
   TOOL_CALL
   APPROVAL_REQUESTED
   APPROVAL_GRANTED
+  // CHAT-mode only: the assistant sent a text reply and the run paused
+  // (WAITING_FOR_INPUT) for the next human message — the chat analogue of
+  // APPROVAL_REQUESTED, both are RunStep records of a mid-run pause rather
+  // than a terminal outcome.
+  AWAITING_INPUT
   RUN_COMPLETED
   RUN_FAILED
   RUN_CANCELLED
@@ -90,6 +100,11 @@ enum WorkflowSource {
 enum AgentExecutionMode {
   LOOP
   HARNESS
+  // Same turn-by-turn tool-calling loop as LOOP; the only difference is the
+  // stop condition — a text-only model response pauses the run
+  // (WAITING_FOR_INPUT) for the next human message instead of completing
+  // it. See lib/runtime/agent-runtime.ts.
+  CHAT
 }
 
 model Organisation {
@@ -301,6 +316,12 @@ model Agent {
   runs                AgentRun[]
   tools               AgentTool[]
   workflowMemberships WorkflowAgent[]
+  // Which other agents this agent (typically CHAT-mode) may call via the
+  // invoke_agent tool — this side is the caller.
+  invokableAgents     AgentInvocationGrant[] @relation("InvocationCaller")
+  // Which other agents may invoke *this* one — kept for the cascade; not
+  // read directly anywhere today.
+  invokableBy         AgentInvocationGrant[] @relation("InvocationTarget")
 
   @@index([organisationId])
   @@index([actionIntegrationId])
@@ -322,6 +343,28 @@ model AgentTool {
 
   @@unique([agentId, toolName])
   @@index([agentId])
+}
+
+// Explicit allow-list of which agents a (typically CHAT-mode) agent may
+// call through the generic invoke_agent tool — the same "grant, don't
+// imply" shape as AgentTool, kept as its own table rather than an overload
+// of AgentTool because it points at another Agent, not a fixed tool name.
+// Having invoke_agent itself granted isn't enough on its own; the caller
+// also needs a row here naming exactly which agent it may address.
+model AgentInvocationGrant {
+  id                  String   @id @default(cuid())
+  orchestratorAgentId String
+  targetAgentId       String
+  createdAt           DateTime @default(now())
+
+  // Cascade both ways: a grant row has no independent value once either
+  // side of it is gone — same reasoning as AgentTool.agent.
+  orchestratorAgent Agent @relation("InvocationCaller", fields: [orchestratorAgentId], references: [id], onDelete: Cascade)
+  targetAgent       Agent @relation("InvocationTarget", fields: [targetAgentId], references: [id], onDelete: Cascade)
+
+  @@unique([orchestratorAgentId, targetAgentId])
+  @@index([orchestratorAgentId])
+  @@index([targetAgentId])
 }
 
 // A named, reusable pipeline: one classifier agent that decides which
@@ -399,9 +442,11 @@ model AgentRun {
   organisationId String
   status         RunStatus @default(PENDING)
   input          String
-  // Snapshot of the in-progress conversation, saved only when the run
-  // pauses for approval — lets resumeRun() pick the loop back up rather
-  // than starting the conversation over.
+  // Snapshot of the in-progress conversation, saved whenever the run
+  // pauses — either for approval (WAITING_FOR_APPROVAL, resumed by
+  // resumeRun()) or, for CHAT-mode agents, for the next human message
+  // (WAITING_FOR_INPUT, resumed by continueChatRun()) — so the loop picks
+  // back up rather than starting the conversation over.
   messages       Json?
   startedAt      DateTime?
   completedAt    DateTime?
