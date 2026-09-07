@@ -5,7 +5,7 @@ import {
   activateWorkflowAction,
   addWorkflowMemberAction,
   deactivateWorkflowAction,
-} from "@/app/(app)/workflows/[id]/actions";
+} from "@/app/(shell)/(app)/workflows/[id]/actions";
 import { AgentStatusBadge } from "@/components/agents/agent-status-badge";
 import { RunStatusBadge } from "@/components/runs/run-status-badge";
 import { Badge } from "@/components/ui/badge";

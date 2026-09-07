@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 import {
   disconnectAllAccountsAction,
   disconnectIntegrationAction,
-} from "@/app/(app)/settings/actions";
+} from "@/app/(shell)/(app)/settings/actions";
 import { IntegrationIcon } from "@/components/settings/integration-icon";
 import { WebhookAccountForm } from "@/components/settings/webhook-account-form";
 import { Button } from "@/components/ui/button";

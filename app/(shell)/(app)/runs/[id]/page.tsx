@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import {
   approveRunAction,
   rejectRunAction,
-} from "@/app/(app)/runs/[id]/actions";
+} from "@/app/(shell)/(app)/runs/[id]/actions";
 import { RunStatusBadge } from "@/components/runs/run-status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

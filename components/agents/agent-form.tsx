@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import type { AgentFormState } from "@/app/(app)/agents/actions";
+import type { AgentFormState } from "@/app/(shell)/(app)/agents/actions";
 import type { Agent } from "@/lib/generated/prisma/client";
 import { TOOL_GROUPS, TOOL_REGISTRY } from "@/lib/mcp/tool-registry";
 
@@ -133,6 +133,7 @@ export function AgentForm({
   templates = [],
   gmailIntegrations = [],
   initialStepsConfig,
+  preselectedTemplate,
 }: {
   action: (
     prevState: AgentFormState,
@@ -148,6 +149,10 @@ export function AgentForm({
   // typed: it round-trips through the JSON editor and is validated
   // server-side against the same schema the runtime uses.
   initialStepsConfig?: Record<string, unknown>;
+  // Arriving from the standalone /templates page rather than picking one
+  // from the list below — installed as this form's starting state, exactly
+  // as if "Use this" had already been clicked.
+  preselectedTemplate?: TemplateOption;
 }) {
   const [state, formAction] = useActionState<AgentFormState, FormData>(
     action,
@@ -177,14 +182,17 @@ export function AgentForm({
   );
 
   const [stepsJson, setStepsJson] = useState(() =>
-    initialStepsConfig && Object.keys(initialStepsConfig).length > 0
-      ? JSON.stringify(initialStepsConfig, null, 2)
-      : DEFAULT_STEPS_JSON,
+    preselectedTemplate
+      ? JSON.stringify(preselectedTemplate.steps, null, 2)
+      : initialStepsConfig && Object.keys(initialStepsConfig).length > 0
+        ? JSON.stringify(initialStepsConfig, null, 2)
+        : DEFAULT_STEPS_JSON,
   );
   // Controlled rather than defaultChecked, because installing a template
   // ticks the tools its steps need.
   const [toolNames, setToolNames] = useState<Set<string>>(
-    () => new Set(agent?.toolNames ?? []),
+    () =>
+      new Set(preselectedTemplate?.suggestedTools ?? agent?.toolNames ?? []),
   );
 
   // null = no manual choice since the last submit, so the section with the

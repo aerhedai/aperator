@@ -7,7 +7,7 @@ import {
   addKnowledgeDocumentAction,
   deleteKnowledgeDocumentAction,
   type KnowledgeFormState,
-} from "@/app/(app)/knowledge/actions";
+} from "@/app/(shell)/(app)/knowledge/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

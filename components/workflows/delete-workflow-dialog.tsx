@@ -2,7 +2,7 @@
 
 import { useFormStatus } from "react-dom";
 
-import { deleteWorkflowAction } from "@/app/(app)/workflows/[id]/actions";
+import { deleteWorkflowAction } from "@/app/(shell)/(app)/workflows/[id]/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

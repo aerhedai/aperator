@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { updateAgentAction } from "@/app/(app)/agents/actions";
+import { updateAgentAction } from "@/app/(shell)/(app)/agents/actions";
 import { AgentForm } from "@/components/agents/agent-form";
 import * as agentService from "@/lib/agents/agent-service";
 import * as templateService from "@/lib/agents/template-service";

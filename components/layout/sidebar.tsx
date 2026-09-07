@@ -1,6 +1,5 @@
 "use client";
 
-import { OrganizationSwitcher, UserButton, useAuth } from "@clerk/nextjs";
 import {
   Activity,
   Bot,
@@ -26,31 +25,15 @@ const LINKS = [
   { href: "/approvals", label: "Approvals", icon: CheckCircle2 },
 ];
 
+// The org switcher and account menu live in the top bar now
+// (app/(shell)/layout.tsx) — they're relevant regardless of whether
+// you're under Home, Templates, or Docs, not just this sidebar's own
+// section list.
 export function Sidebar({ pendingApprovals }: { pendingApprovals: number }) {
   const pathname = usePathname();
-  // <SignedIn> was removed in this Clerk major version ("Core 3") — check
-  // auth state via the hook instead (same approach the old top nav used).
-  const { isSignedIn } = useAuth();
 
   return (
-    <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-border p-3">
-      <div className="mb-4 flex items-center gap-2 px-1 py-1">
-        <span className="text-sm font-semibold tracking-tight">Aperator</span>
-      </div>
-
-      {isSignedIn && (
-        <div className="mb-4 rounded-md border border-border px-2 py-1.5">
-          <OrganizationSwitcher
-            afterSelectOrganizationUrl="/dashboard"
-            appearance={{
-              elements: {
-                organizationSwitcherTrigger: "w-full justify-between px-1",
-              },
-            }}
-          />
-        </div>
-      )}
-
+    <aside className="flex h-full w-60 shrink-0 flex-col gap-0.5 border-r border-border p-3">
       <nav className="flex flex-col gap-0.5">
         {LINKS.map((link) => {
           const active = pathname.startsWith(link.href);
@@ -84,26 +67,18 @@ export function Sidebar({ pendingApprovals }: { pendingApprovals: number }) {
 
       <div className="flex-1" />
 
-      <div className="flex flex-col gap-0.5 border-t border-border pt-2">
-        <Link
-          href="/settings"
-          className={cn(
-            "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
-            pathname.startsWith("/settings")
-              ? "bg-app-accent-soft text-app-accent-soft-foreground"
-              : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-          )}
-        >
-          <SettingsIcon className="size-4 shrink-0" />
-          Settings
-        </Link>
-        {isSignedIn && (
-          <div className="flex items-center gap-2.5 rounded-md px-2 py-1.5">
-            <UserButton />
-            <span className="text-sm text-muted-foreground">Account</span>
-          </div>
+      <Link
+        href="/settings"
+        className={cn(
+          "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
+          pathname.startsWith("/settings")
+            ? "bg-app-accent-soft text-app-accent-soft-foreground"
+            : "text-muted-foreground hover:bg-secondary hover:text-foreground",
         )}
-      </div>
+      >
+        <SettingsIcon className="size-4 shrink-0" />
+        Settings
+      </Link>
     </aside>
   );
 }
