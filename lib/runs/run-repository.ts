@@ -107,12 +107,32 @@ export function findRunsByAgentIds(
 // than a fixed take like the other list functions here: this is the one
 // place meant to show *all* runs, not a recent-N preview on another
 // page, so it has to scale past however many runs an org accumulates.
+export interface RunFilters {
+  status?: RunStatus;
+  agentId?: string;
+  // Matched against input only — the field a business actually recognizes
+  // (what was sent in), not an internal id a human wouldn't type.
+  q?: string;
+}
+
+function runFiltersWhere(organisationId: string, filters: RunFilters = {}) {
+  return {
+    organisationId,
+    ...(filters.status && { status: filters.status }),
+    ...(filters.agentId && { agentId: filters.agentId }),
+    ...(filters.q && {
+      input: { contains: filters.q, mode: "insensitive" as const },
+    }),
+  };
+}
+
 export function findRunsByOrganisation(
   organisationId: string,
   { skip, take }: { skip: number; take: number },
+  filters: RunFilters = {},
 ) {
   return prisma.agentRun.findMany({
-    where: { organisationId },
+    where: runFiltersWhere(organisationId, filters),
     orderBy: { createdAt: "desc" },
     skip,
     take,
@@ -120,8 +140,13 @@ export function findRunsByOrganisation(
   });
 }
 
-export function countRunsByOrganisation(organisationId: string) {
-  return prisma.agentRun.count({ where: { organisationId } });
+export function countRunsByOrganisation(
+  organisationId: string,
+  filters: RunFilters = {},
+) {
+  return prisma.agentRun.count({
+    where: runFiltersWhere(organisationId, filters),
+  });
 }
 
 // Per-run token totals for a page of runs — a groupBy aggregate, not

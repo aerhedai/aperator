@@ -105,6 +105,10 @@ export function setWorkflowStatus(
   });
 }
 
+export function deleteWorkflow(organisationId: string, id: string) {
+  return prisma.workflow.deleteMany({ where: { id, organisationId } });
+}
+
 // Everything else already ACTIVE on this org+trigger+account, demoted to
 // DRAFT — the other half of activateWorkflow's swap (workflow-service.ts).
 // Scoped to triggerIntegrationId too, not just trigger: two workflows on

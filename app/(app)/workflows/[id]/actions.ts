@@ -55,6 +55,23 @@ export async function deactivateWorkflowAction(workflowId: string) {
   redirect(`/workflows/${workflowId}`);
 }
 
+// Only offered in the UI when the workflow has zero members (see
+// app/(app)/workflows/[id]/page.tsx) — deleting one with agents still
+// attached throws (workflow-service.ts); removing members or archiving
+// are the alternatives for those.
+export async function deleteWorkflowAction(workflowId: string) {
+  const organisation = await getCurrentOrganisation();
+  const deleted = await workflowService.deleteWorkflow(
+    organisation.id,
+    workflowId,
+  );
+  if (!deleted) {
+    notFound();
+  }
+  revalidatePath("/workflows");
+  redirect("/workflows");
+}
+
 // Removes the membership row only — the agent itself is untouched (see
 // workflow-service.ts's removeMember doc comment). Deliberately no
 // confirmation dialog: reversible in one click via "Add agent to this
