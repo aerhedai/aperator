@@ -154,11 +154,10 @@ the reference's proportions.
 Sending the first message still goes through the existing
 `startChatAction` Server Action (`app/(shell)/chat/actions.ts`), which
 already creates the run and calls `redirect(\`/chat/${runId}\`)`. A Server
-Action `redirect()` is already a client-side transition in the App
+Action `redirect()`is already a client-side transition in the App
 Router — there is no full page reload to fix here, only the visual
 mismatch of the old list-page being fixed by removing it. Opening a
-thread from the sidebar's Chats list navigates straight to
-`/chat/[runId]` and continues that thread; there is no separate "new vs.
+thread from the sidebar's Chats list navigates straight to`/chat/[runId]` and continues that thread; there is no separate "new vs.
 continue" branch to build beyond routes that already exist.
 
 **One thing to verify, not pre-solve:** whether the sidebar's Chats list

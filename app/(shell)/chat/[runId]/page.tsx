@@ -28,7 +28,8 @@ export default async function ChatThreadPage({
               day: "numeric",
               month: "short",
             })}
-            , {run.createdAt.toLocaleTimeString("en-GB", {
+            ,{" "}
+            {run.createdAt.toLocaleTimeString("en-GB", {
               hour: "numeric",
               minute: "2-digit",
             })}

@@ -24,9 +24,11 @@
 ## Task 1: Build the new Sidebar component
 
 **Files:**
+
 - Modify: `components/layout/sidebar.tsx` (full rewrite)
 
 **Interfaces:**
+
 - Produces: `Sidebar({ pendingApprovals: number, chatThreads: SidebarChatThread[] })` and the exported `SidebarChatThread` interface (`{ id: string; input: string; status: RunStatus; createdAt: Date }`) — Task 2 constructs and passes these props from real data.
 
 This task builds and visually verifies the component in isolation, before it's wired into the real app shell (Task 2). Verification uses a temporary unauthenticated preview route with mock data, the same technique already used and proven earlier on this branch for the chat-thread redesign.
@@ -119,10 +121,7 @@ export function Sidebar({
       )}
     >
       <div
-        className={cn(
-          "flex items-center gap-2",
-          collapsed && "flex-col gap-3",
-        )}
+        className={cn("flex items-center gap-2", collapsed && "flex-col gap-3")}
       >
         <img src="/icon.png" alt="Aperator" className="size-7 shrink-0" />
         {!collapsed && (
@@ -319,8 +318,18 @@ Create `app/dev-preview-sidebar/page.tsx` (temporary, deleted in Step 5):
 import { Sidebar, type SidebarChatThread } from "@/components/layout/sidebar";
 
 const mockThreads: SidebarChatThread[] = [
-  { id: "1", input: "What's the status of the Acme quote?", status: "COMPLETED", createdAt: new Date() },
-  { id: "2", input: "Draft a follow-up email to the landlord about the repair request", status: "WAITING_FOR_INPUT", createdAt: new Date() },
+  {
+    id: "1",
+    input: "What's the status of the Acme quote?",
+    status: "COMPLETED",
+    createdAt: new Date(),
+  },
+  {
+    id: "2",
+    input: "Draft a follow-up email to the landlord about the repair request",
+    status: "WAITING_FOR_INPUT",
+    createdAt: new Date(),
+  },
 ];
 
 export default function DevPreviewSidebarPage() {
@@ -334,6 +343,7 @@ export default function DevPreviewSidebarPage() {
 ```
 
 Start the dev server (`pnpm dev`, needs `.env.local` copied in if this is a fresh worktree — see Task 2's testing step for the full local-dev setup), navigate to `/dev-preview-sidebar` in a real browser (Playwright or otherwise — no auth needed, this route doesn't call `getCurrentOrganisation()`), and check:
+
 - Expanded: logo + wordmark + search + collapse button in the header, Spaces empty-state placeholder, all 8 nav links in order with icons, the Approvals badge showing "3", the Chats section showing both mock threads, footer with org switcher + account + settings icon.
 - Click the collapse button: rail shrinks to icon-only, Spaces/Chats sections disappear, nav icons stay clickable with `title` tooltips, footer shows only the account avatar.
 - Click expand again: state returns, and confirm collapse survives a full page reload (localStorage persistence).
@@ -362,11 +372,13 @@ git commit -m "feat: rebuild the sidebar as the app's single global nav"
 ## Task 2: Wire the new Sidebar into the app shell
 
 **Files:**
+
 - Delete: `components/layout/top-bar.tsx`
 - Delete: `app/(shell)/(app)/layout.tsx`
 - Modify: `app/(shell)/layout.tsx` (full rewrite)
 
 **Interfaces:**
+
 - Consumes: `Sidebar` and `SidebarChatThread` from Task 1 (`@/components/layout/sidebar`); `dashboardService.getDashboardCounts(organisationId)` returning `{ waitingForApproval: number, ... }`; `chatAgentService.findChatAgent(organisationId)` returning `Agent | null`; `runService.listRunsForAgent(organisationId, agentId)` returning rows structurally compatible with `SidebarChatThread`; `getCurrentOrganisation()` (redirects to `/sign-in` or `/select-organisation` if unauthenticated).
 - Produces: every `(shell)` route now renders behind one shared layout that resolves the organisation and always shows the sidebar — no other task needs new exports from this one.
 
@@ -454,10 +466,12 @@ git commit -m "feat: make the sidebar the global nav for every shell route"
 ## Task 3: Redesign the chat pages — full-panel empty state and settings affordance
 
 **Files:**
+
 - Modify: `app/(shell)/chat/page.tsx` (full rewrite)
 - Modify: `app/(shell)/chat/[runId]/page.tsx:17-33` (header row)
 
 **Interfaces:**
+
 - Consumes: `startChatAction` from `@/app/(shell)/chat/actions` (unchanged — already creates a run and redirects to `/chat/[runId]`); `ChatThread` from `@/components/chat/chat-thread` (unchanged).
 - Produces: nothing new consumed by other tasks — this is the last UI change.
 
@@ -555,51 +569,49 @@ import * as runService from "@/lib/runs/run-service";
 Replace the existing header block:
 
 ```tsx
-      <div className="flex items-baseline gap-2 px-6 py-4">
-        <h1 className="text-sm font-medium text-foreground">
-          {run.agent.name}
-        </h1>
-        <span className="text-xs text-muted-foreground">
-          {run.createdAt.toLocaleDateString("en-GB", {
-            day: "numeric",
-            month: "short",
-          })}
-          , {run.createdAt.toLocaleTimeString("en-GB", {
-            hour: "numeric",
-            minute: "2-digit",
-          })}
-        </span>
-      </div>
+<div className="flex items-baseline gap-2 px-6 py-4">
+  <h1 className="text-sm font-medium text-foreground">{run.agent.name}</h1>
+  <span className="text-xs text-muted-foreground">
+    {run.createdAt.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+    })}
+    ,{" "}
+    {run.createdAt.toLocaleTimeString("en-GB", {
+      hour: "numeric",
+      minute: "2-digit",
+    })}
+  </span>
+</div>
 ```
 
 with:
 
 ```tsx
-      <div className="flex items-center justify-between px-6 py-4">
-        <div className="flex items-baseline gap-2">
-          <h1 className="text-sm font-medium text-foreground">
-            {run.agent.name}
-          </h1>
-          <span className="text-xs text-muted-foreground">
-            {run.createdAt.toLocaleDateString("en-GB", {
-              day: "numeric",
-              month: "short",
-            })}
-            , {run.createdAt.toLocaleTimeString("en-GB", {
-              hour: "numeric",
-              minute: "2-digit",
-            })}
-          </span>
-        </div>
-        <Link
-          href="/chat/settings"
-          aria-label="Assistant settings"
-          title="Assistant settings"
-          className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <Settings className="size-4" />
-        </Link>
-      </div>
+<div className="flex items-center justify-between px-6 py-4">
+  <div className="flex items-baseline gap-2">
+    <h1 className="text-sm font-medium text-foreground">{run.agent.name}</h1>
+    <span className="text-xs text-muted-foreground">
+      {run.createdAt.toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+      })}
+      ,{" "}
+      {run.createdAt.toLocaleTimeString("en-GB", {
+        hour: "numeric",
+        minute: "2-digit",
+      })}
+    </span>
+  </div>
+  <Link
+    href="/chat/settings"
+    aria-label="Assistant settings"
+    title="Assistant settings"
+    className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+  >
+    <Settings className="size-4" />
+  </Link>
+</div>
 ```
 
 - [ ] **Step 3: Typecheck and lint**
@@ -632,9 +644,11 @@ git commit -m "feat: make /chat a full-panel composer instead of a thread-list p
 Skip this task entirely if Task 3's verification showed the new thread appearing in the sidebar immediately.
 
 **Files:**
+
 - Modify: `app/(shell)/chat/actions.ts:32-50` (`startChatAction`)
 
 **Interfaces:**
+
 - Consumes: `revalidatePath` from `next/cache`.
 - Produces: nothing new — this only affects cache freshness of data Task 2 already wired up.
 
@@ -729,8 +743,8 @@ gh pr view 103 --json body -q .body > /tmp/pr-103-body.md
 Append this section to the end of `/tmp/pr-103-body.md`:
 
 ```markdown
-
 ## Sidebar-only navigation and full-panel chat (follow-up)
+
 - Replaces the top bar + `(app)`-only sidebar split with one global sidebar (`components/layout/sidebar.tsx`) covering every `(shell)` route: a logo/wordmark/search/collapse header, a visual-only "Spaces" placeholder (no new backend — see `docs/sidebar-nav-redesign-design.md`), the full nav list (Home, Chat, Workflows, Agents, Runs, Catalog, Knowledge, Approvals), a live "Chats" history section, and an org-switcher/account/settings footer. Collapses to an icon-only rail, persisted via `localStorage`.
 - `TopBar` and the `(app)`-only layout are deleted; `app/(shell)/layout.tsx` now does the organisation/data resolution for the whole shell, including the chat thread list the sidebar's Chats section reads.
 - `/chat` no longer shows an inline thread list (now redundant with the sidebar) — it's a full-panel empty-state composer from first paint, matching the reference design's proportions instead of a boxy list-then-thread transition.
@@ -738,6 +752,7 @@ Append this section to the end of `/tmp/pr-103-body.md`:
 - No new colors, no new primitives, no new database model.
 
 ### Test plan (this follow-up)
+
 - [x] `pnpm run typecheck` / `pnpm run lint` / `pnpm test` (477/477) / `next build` — all clean
 - [x] Real authenticated browser verification via Clerk's test-mode bypass (`+clerk_test` email, code `424242` — no seed-script shortcut exists in this repo): sidebar renders on every route, correct active-state highlighting, collapse/expand persists across reload, Chats section reflects real threads, `/templates` and `/docs` still render behind the new shared auth gate
 - [x] New-thread-appears-in-sidebar-immediately check (the one item the design spec flagged as "verify, don't pre-solve")

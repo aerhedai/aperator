@@ -106,10 +106,7 @@ export function Sidebar({
       )}
     >
       <div
-        className={cn(
-          "flex items-center gap-2",
-          collapsed && "flex-col gap-3",
-        )}
+        className={cn("flex items-center gap-2", collapsed && "flex-col gap-3")}
       >
         <img src="/icon.png" alt="Aperator" className="size-7 shrink-0" />
         {!collapsed && (
