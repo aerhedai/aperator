@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import { extractionFieldsSchema } from "@/lib/agents/extraction-fields";
-import { TOOL_NAMES } from "@/lib/mcp/tool-registry";
 
 // What a business actually picks in the form — translated below into the
 // Prisma-shaped executionMode/pipelineKey pair, so nothing above this
@@ -57,9 +56,14 @@ export const agentInputSchema = z
       .default(null),
     // Deterministic pre-classifier keywords (lib/routing/deterministic-classify.ts).
     keywords: z.array(z.string().trim().min(1)).default([]),
-    // Validated against the canonical registry so a submitted tool name that
-    // isn't real can never reach the database (lib/mcp/tool-registry.ts).
-    toolNames: z.array(z.enum(TOOL_NAMES)).default([]),
+    // Not validated against the fixed registry here any more — a granted
+    // tool name may now also name a tool discovered from one of this
+    // organisation's own connected MCP servers (lib/integrations/mcp/
+    // tool-naming.ts), which this schema has no way to check without a DB
+    // call. The real check (fixed registry OR a real discovered tool for
+    // this org) moves to agent-service.ts's validateToolGrants, which runs
+    // before either createAgent or updateAgent writes anything.
+    toolNames: z.array(z.string().min(1)).default([]),
     // "acknowledge_reply"-only — ignored (but harmless to submit) for
     // "loop"/"quote" categories.
     extractionFields: extractionFieldsSchema.default([]),
