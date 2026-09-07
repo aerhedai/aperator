@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import * as integrationService from "@/lib/integrations/integration-service";
-import { requiresApprovalBeforeExecution } from "@/lib/policies/policy-engine";
+import {
+  evaluatePolicy,
+  requiresApprovalBeforeExecution,
+} from "@/lib/policies/policy-engine";
 
 const ORG_ID = "test-org";
 
@@ -71,5 +74,25 @@ describe("requiresApprovalBeforeExecution", () => {
     expect(
       await requiresApprovalBeforeExecution("mcp:gone:whatever", ORG_ID),
     ).toBe(true);
+  });
+});
+
+describe("evaluatePolicy", () => {
+  it("allows any tool by default — no post-execution rules are active", () => {
+    const result = evaluatePolicy({
+      toolName: "calculate_quote",
+      toolOutput: { total: 27_000 },
+    });
+
+    expect(result.decision).toBe("ALLOW");
+  });
+
+  it("allows send_email's own output too — its gate is pre-execution, not output-based", () => {
+    const result = evaluatePolicy({
+      toolName: "send_email",
+      toolOutput: { sent: true },
+    });
+
+    expect(result.decision).toBe("ALLOW");
   });
 });
