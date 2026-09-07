@@ -68,6 +68,13 @@ export const INTEGRATION_REGISTRY = [
       "Connect a SharePoint site so agents can archive inbound email and attachments into a folder structure — the SharePoint alternative to Google Drive.",
     connectionMode: "oauth",
   },
+  {
+    provider: "mcp",
+    label: "Custom MCP server",
+    description:
+      "Connect any external system's own MCP server by URL and bearer token — every tool it exposes becomes grantable to your agents, no code required.",
+    connectionMode: "manual",
+  },
 ] as const;
 
 export type IntegrationProviderName =

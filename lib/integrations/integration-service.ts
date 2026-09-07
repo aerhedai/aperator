@@ -5,6 +5,8 @@ import * as integrationRepository from "@/lib/integrations/integration-repositor
 import { refreshAccessToken as refreshGmailAccessToken } from "@/lib/integrations/gmail/oauth";
 import type { GmailTokens } from "@/lib/integrations/gmail/oauth";
 import { refreshAccessToken as refreshGoogleAccessToken } from "@/lib/integrations/google/oauth-core";
+import { listExternalMcpTools } from "@/lib/integrations/mcp/external-client";
+import type { DiscoveredMcpTool } from "@/lib/integrations/mcp/tool-naming";
 import { refreshAccessToken as refreshMicrosoftAccessToken } from "@/lib/integrations/microsoft/oauth-core";
 import type { OAuthExchangeResult } from "@/lib/integrations/oauth-adapter";
 
@@ -19,6 +21,7 @@ const OUTLOOK_CALENDAR_PROVIDER = "outlook-calendar";
 const WEBHOOK_PROVIDER = "webhook";
 const GOOGLE_DRIVE_PROVIDER = "google-drive";
 const SHAREPOINT_PROVIDER = "sharepoint";
+export const MCP_PROVIDER = "mcp";
 
 interface AccessRefreshCredentials {
   accessToken: string;
@@ -523,4 +526,87 @@ export async function verifyWebhookSecret(
     return null;
   }
   return { organisationId: integration.organisationId };
+}
+
+/**
+ * Validates via a live listTools() call before saving anything — a broken
+ * URL or bad token fails here, at connect time, with a specific error,
+ * never silently at first agent run.
+ */
+export async function connectMcpServer(
+  organisationId: string,
+  input: { label: string; url: string; token: string },
+) {
+  const tools = await listExternalMcpTools(input.url, input.token);
+  return integrationRepository.upsertIntegration(
+    organisationId,
+    MCP_PROVIDER,
+    input.label,
+    {
+      // DiscoveredMcpTool[] is genuinely JSON-safe (plain strings, a
+      // nested plain object, a boolean-or-null) but not structurally
+      // provable as Prisma.InputJsonValue — same situation as
+      // connectOAuthAccount's config cast above.
+      config: {
+        url: input.url,
+        tools,
+        toolsRefreshedAt: new Date().toISOString(),
+      } as unknown as Prisma.InputJsonValue,
+      credentials: { token: input.token },
+    },
+  );
+}
+
+export async function refreshMcpServerTools(
+  organisationId: string,
+  integrationId: string,
+): Promise<void> {
+  const integration = await integrationRepository.findIntegrationById(
+    organisationId,
+    integrationId,
+  );
+  if (!integration || integration.provider !== MCP_PROVIDER) {
+    throw new Error("MCP server connection not found");
+  }
+  const url = (integration.config as { url: string }).url;
+  const token = integration.credentials?.token as string | undefined;
+  if (!token) {
+    throw new Error("This connection has no saved token");
+  }
+  const tools = await listExternalMcpTools(url, token);
+  await integrationRepository.upsertIntegration(
+    organisationId,
+    MCP_PROVIDER,
+    integration.name,
+    {
+      config: {
+        url,
+        tools,
+        toolsRefreshedAt: new Date().toISOString(),
+      } as unknown as Prisma.InputJsonValue,
+      credentials: { token },
+    },
+  );
+}
+
+/**
+ * The one place a discovered tool is looked up by (integrationId,
+ * remoteToolName) — used by policy-engine.ts's approval-gate check and
+ * agent-service.ts's grant validation alike, so both always agree on
+ * exactly which tools genuinely exist for this organisation right now.
+ * Scoped by organisationId at the repository layer — an id belonging to a
+ * different organisation's connection can never match here.
+ */
+export async function findMcpTool(
+  organisationId: string,
+  integrationId: string,
+  remoteToolName: string,
+): Promise<DiscoveredMcpTool | null> {
+  const integration = await integrationRepository.findIntegrationById(
+    organisationId,
+    integrationId,
+  );
+  if (!integration || integration.provider !== MCP_PROVIDER) return null;
+  const tools = (integration.config as { tools?: DiscoveredMcpTool[] }).tools;
+  return tools?.find((tool) => tool.name === remoteToolName) ?? null;
 }
