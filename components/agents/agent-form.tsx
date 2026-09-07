@@ -17,6 +17,10 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import type { AgentFormState } from "@/app/(shell)/(app)/agents/actions";
 import type { Agent } from "@/lib/generated/prisma/client";
+import {
+  buildMcpToolName,
+  type DiscoveredMcpTool,
+} from "@/lib/integrations/mcp/tool-naming";
 import { TOOL_GROUPS, TOOL_REGISTRY } from "@/lib/mcp/tool-registry";
 
 /**
@@ -140,6 +144,7 @@ export function AgentForm({
   submitLabel,
   templates = [],
   gmailIntegrations = [],
+  mcpConnections = [],
   initialStepsConfig,
   preselectedTemplate,
 }: {
@@ -153,6 +158,14 @@ export function AgentForm({
   // default so any caller not yet passing them still renders.
   templates?: TemplateOption[];
   gmailIntegrations?: { id: string; name: string }[];
+  // This organisation's connected external MCP servers, with the tools
+  // discovered from each one's tools/list call. Empty by default so any
+  // caller not yet passing them still renders exactly as before.
+  mcpConnections?: {
+    id: string;
+    label: string;
+    tools: DiscoveredMcpTool[];
+  }[];
   // The agent's existing step programme when editing. Raw rather than
   // typed: it round-trips through the JSON editor and is validated
   // server-side against the same schema the runtime uses.
@@ -474,6 +487,44 @@ export function AgentForm({
                         </label>
                       ),
                     )}
+                  </div>
+                ))}
+                {(mcpConnections ?? []).map((connection) => (
+                  <div key={connection.id} className="flex flex-col gap-2">
+                    <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                      {connection.label}
+                    </span>
+                    {connection.tools.map((tool) => {
+                      const fullName = buildMcpToolName(
+                        connection.id,
+                        tool.name,
+                      );
+                      return (
+                        <label
+                          key={fullName}
+                          className="flex items-start gap-2 text-sm"
+                          htmlFor={`tool-${fullName}`}
+                        >
+                          <input
+                            type="checkbox"
+                            id={`tool-${fullName}`}
+                            name="toolNames"
+                            value={fullName}
+                            checked={toolNames.has(fullName)}
+                            onChange={(e) =>
+                              toggleTool(fullName, e.target.checked)
+                            }
+                            className="mt-0.5 h-4 w-4 rounded border-border"
+                          />
+                          <span className="flex flex-col">
+                            <span className="font-medium">{tool.name}</span>
+                            <span className="text-muted-foreground">
+                              {tool.description}
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })}
                   </div>
                 ))}
               </div>

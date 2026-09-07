@@ -5,6 +5,7 @@ import { AgentForm } from "@/components/agents/agent-form";
 import * as agentService from "@/lib/agents/agent-service";
 import * as templateService from "@/lib/agents/template-service";
 import * as integrationService from "@/lib/integrations/integration-service";
+import type { DiscoveredMcpTool } from "@/lib/integrations/mcp/tool-naming";
 import { getCurrentOrganisation } from "@/lib/organisations/current-organisation";
 
 export const dynamic = "force-dynamic";
@@ -14,11 +15,13 @@ export default async function EditAgentPage({
 }: PageProps<"/agents/[id]/edit">) {
   const { id } = await params;
   const organisation = await getCurrentOrganisation();
-  const [agent, templates, gmailIntegrations] = await Promise.all([
-    agentService.getAgent(organisation.id, id),
-    templateService.listTemplates(organisation.id),
-    integrationService.listIntegrationsByProvider(organisation.id, "gmail"),
-  ]);
+  const [agent, templates, gmailIntegrations, mcpIntegrations] =
+    await Promise.all([
+      agentService.getAgent(organisation.id, id),
+      templateService.listTemplates(organisation.id),
+      integrationService.listIntegrationsByProvider(organisation.id, "gmail"),
+      integrationService.listIntegrationsByProvider(organisation.id, "mcp"),
+    ]);
 
   if (!agent) {
     notFound();
@@ -36,6 +39,12 @@ export default async function EditAgentPage({
       ? (agent.pipelineConfig as Record<string, unknown>)
       : undefined;
 
+  const mcpConnections = mcpIntegrations.map((integration) => ({
+    id: integration.id,
+    label: integration.name,
+    tools: (integration.config as { tools?: DiscoveredMcpTool[] }).tools ?? [],
+  }));
+
   return (
     <div className="flex flex-col gap-4 p-6">
       <h1 className="text-xl font-semibold">Edit {agent.name}</h1>
@@ -52,6 +61,7 @@ export default async function EditAgentPage({
           name: i.name,
         }))}
         initialStepsConfig={initialStepsConfig}
+        mcpConnections={mcpConnections}
       />
     </div>
   );
