@@ -10,6 +10,7 @@ import { z } from "zod";
 import { encryptToken } from "@/lib/crypto/token-cipher";
 import { prisma } from "@/lib/db/prisma";
 import * as integrationService from "@/lib/integrations/integration-service";
+import { buildMcpToolName } from "@/lib/integrations/mcp/tool-naming";
 import { createMcpServer } from "@/lib/mcp/server";
 
 const TEST_TOKEN = "test-bearer-token";
@@ -40,7 +41,36 @@ function buildTestMcpServer(): McpServer {
   return mcpServer;
 }
 
-async function startTestMcpServer(): Promise<{
+// A second fixture, distinct from buildTestMcpServer above, whose one tool
+// declares a real typed/described/required shape — proves Fix 6 (the
+// proxy's pass-through schema reflects the remote's real declared JSON
+// Schema instead of collapsing every property to z.unknown()).
+function buildTypedTestMcpServer(): McpServer {
+  const mcpServer = new McpServer({
+    name: "test-typed-external-server",
+    version: "0.1.0",
+  });
+  mcpServer.registerTool(
+    "typed_search",
+    {
+      description: "Searches with typed, described parameters.",
+      inputSchema: {
+        query: z.string().describe("The search query."),
+        limit: z.number().optional(),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ query, limit }) => ({
+      content: [{ type: "text" as const, text: query }],
+      structuredContent: { query, limit },
+    }),
+  );
+  return mcpServer;
+}
+
+async function startTestMcpServer(
+  buildServer: () => McpServer = buildTestMcpServer,
+): Promise<{
   url: string;
   close: () => Promise<void>;
 }> {
@@ -51,7 +81,7 @@ async function startTestMcpServer(): Promise<{
     }
 
     void (async () => {
-      const mcpServer = buildTestMcpServer();
+      const mcpServer = buildServer();
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
       });
@@ -132,16 +162,22 @@ describe("mcp proxy tools", () => {
       { label: "Test Server", url: testServer.url, token: TEST_TOKEN },
     );
 
+    const expectedName = buildMcpToolName(integration.id, "search");
+
     const client = await connectInProcessClient(organisationId);
     try {
       const { tools } = await client.listTools();
-      const proxied = tools.find((t) =>
-        t.name.startsWith(`mcp:${integration.id}:`),
-      );
-      expect(proxied?.name).toBe(`mcp:${integration.id}:search`);
+      const proxied = tools.find((t) => t.name === expectedName);
+      expect(proxied?.name).toBe(expectedName);
+      // The registered tool advertises the remote's real declared shape —
+      // not a bare pass-through of unknown() for every property — see
+      // Fix 6 below for the full assertion on this.
+      expect(proxied?.inputSchema.properties?.query).toMatchObject({
+        type: "string",
+      });
 
       const result = await client.callTool({
-        name: `mcp:${integration.id}:search`,
+        name: expectedName,
         arguments: { query: "widgets" },
       });
       expect(result.isError).not.toBe(true);
@@ -189,10 +225,57 @@ describe("mcp proxy tools", () => {
       const { tools } = await client.listTools();
       expect(tools.some((t) => t.name === "find_record")).toBe(true);
       expect(
-        tools.some((t) => t.name === `mcp:${goodConnection.id}:search`),
+        tools.some(
+          (t) => t.name === buildMcpToolName(goodConnection.id, "search"),
+        ),
       ).toBe(true);
     } finally {
       await client.close();
+    }
+  });
+
+  it("advertises a discovered tool's real declared shape — typed, described, required properties — not a bare property-name pass-through", async () => {
+    const typedServer = await startTestMcpServer(buildTypedTestMcpServer);
+    try {
+      const integration = await integrationService.connectMcpServer(
+        organisationId,
+        { label: "Typed Server", url: typedServer.url, token: TEST_TOKEN },
+      );
+      const expectedName = buildMcpToolName(integration.id, "typed_search");
+
+      const client = await connectInProcessClient(organisationId);
+      try {
+        const { tools } = await client.listTools();
+        const proxied = tools.find((t) => t.name === expectedName);
+        expect(proxied).toBeDefined();
+
+        const properties = proxied?.inputSchema.properties as Record<
+          string,
+          { type?: string; description?: string }
+        >;
+        expect(properties.query).toMatchObject({
+          type: "string",
+          description: "The search query.",
+        });
+        expect(properties.limit).toMatchObject({ type: "number" });
+        expect(proxied?.inputSchema.required).toEqual(["query"]);
+
+        // Regression: a valid, well-formed call still round-trips through
+        // to the remote server correctly after this change.
+        const result = await client.callTool({
+          name: expectedName,
+          arguments: { query: "widgets", limit: 5 },
+        });
+        expect(result.isError).not.toBe(true);
+        expect(result.structuredContent).toEqual({
+          query: "widgets",
+          limit: 5,
+        });
+      } finally {
+        await client.close();
+      }
+    } finally {
+      await typedServer.close();
     }
   });
 });
