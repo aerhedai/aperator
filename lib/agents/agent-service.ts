@@ -46,6 +46,14 @@ async function validateActionIntegration(
   }
 }
 
+// A distinct error type — not just a distinctively-worded Error — so
+// callers (app/(shell)/(app)/agents/actions.ts) can tell "this tool grant
+// doesn't exist" apart from other failure modes (most importantly
+// updateAgent's own "Agent not found" case below) with an `instanceof`
+// check rather than matching on message text, which would silently break
+// the moment either message's wording changed.
+export class ToolGrantError extends Error {}
+
 // Every granted tool name must be either a fixed built-in tool
 // (lib/mcp/tool-registry.ts) or a tool this organisation's own connected
 // MCP server actually reports having (lib/integrations/mcp/tool-naming.ts
@@ -62,7 +70,7 @@ async function validateToolGrants(
 
     const parsed = parseMcpToolName(toolName);
     if (!parsed) {
-      throw new Error(`"${toolName}" is not a valid tool.`);
+      throw new ToolGrantError(`"${toolName}" is not a valid tool.`);
     }
 
     const tool = await integrationService.findMcpTool(
@@ -71,7 +79,7 @@ async function validateToolGrants(
       parsed.remoteToolName,
     );
     if (!tool) {
-      throw new Error(
+      throw new ToolGrantError(
         `"${toolName}" does not exist on any of this organisation's connected MCP servers.`,
       );
     }

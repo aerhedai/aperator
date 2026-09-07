@@ -124,6 +124,7 @@ const FIELD_SECTION: Record<string, Section> = {
   description: "basics",
   instructions: "instructions",
   pipelineConfig: "steps",
+  toolNames: "tools",
   model: "routing",
 };
 
@@ -532,6 +533,11 @@ export function AgentForm({
                 A tool call this agent isn&rsquo;t granted here is refused at
                 runtime, even if the model asks for it.
               </p>
+              {state.fieldErrors?.toolNames && (
+                <p className="text-sm text-destructive">
+                  {state.fieldErrors.toolNames[0]}
+                </p>
+              )}
             </div>
           </div>
 
