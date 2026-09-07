@@ -228,7 +228,7 @@ async function runLoop(context: LoopContext): Promise<RunResult> {
         continue;
       }
 
-      if (requiresApprovalBeforeExecution(call.name)) {
+      if (await requiresApprovalBeforeExecution(call.name, organisationId)) {
         // Gated *before* execution — this tool mutates external,
         // customer-visible state, and approving after the fact can't
         // un-send an email. The assistant message above already recorded
