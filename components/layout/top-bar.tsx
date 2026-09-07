@@ -9,12 +9,19 @@ import { cn } from "@/lib/utils";
 const DESTINATIONS = [
   // "Home" covers everything under the (app) group — dashboard, workflows,
   // agents, runs, catalog, knowledge, approvals, settings — so it's active
-  // whenever the path isn't explicitly one of the other two.
+  // whenever the path isn't explicitly one of the others.
   {
     href: "/dashboard",
     label: "Home",
     match: (path: string) =>
-      !path.startsWith("/templates") && !path.startsWith("/docs"),
+      !path.startsWith("/templates") &&
+      !path.startsWith("/docs") &&
+      !path.startsWith("/chat"),
+  },
+  {
+    href: "/chat",
+    label: "Chat",
+    match: (path: string) => path.startsWith("/chat"),
   },
   {
     href: "/templates",
