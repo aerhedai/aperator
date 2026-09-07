@@ -3,13 +3,16 @@ import type { ToolCallback } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 
 import type { AIProvider } from "@/lib/ai/provider";
+import * as integrationRepository from "@/lib/integrations/integration-repository";
 import * as integrationService from "@/lib/integrations/integration-service";
+import type { DiscoveredMcpTool } from "@/lib/integrations/mcp/tool-naming";
 import { createCheckCalendarAvailabilityTool } from "@/lib/mcp/tools/check-calendar-availability";
 import { createCreateCalendarEventTool } from "@/lib/mcp/tools/create-calendar-event";
 import { createCreateFolderTool } from "@/lib/mcp/tools/create-folder";
 import { createCreateRecordTool } from "@/lib/mcp/tools/create-record";
 import { createFindRecordTool } from "@/lib/mcp/tools/find-record";
 import { createInvokeAgentTool } from "@/lib/mcp/tools/invoke-agent";
+import { createMcpProxyTool } from "@/lib/mcp/tools/mcp-proxy-tool";
 import { createNotifyChannelTool } from "@/lib/mcp/tools/notify-channel";
 import { createPopulateTemplateTool } from "@/lib/mcp/tools/populate-template";
 import { createSaveFileTool } from "@/lib/mcp/tools/save-file";
@@ -104,12 +107,24 @@ export async function createMcpServer(
     tool: ToolDefinition<InputArgs, OutputArgs>,
     annotations?: typeof readOnly,
   ) => {
+    // An empty outputSchema shape ({}) is not the same thing as "no output
+    // schema" to the SDK: an empty raw shape is still a valid raw shape
+    // (isZodRawShapeCompat treats {} as "a tool with no parameters"), so it
+    // gets converted into a Zod/JSON schema that permits *no* properties at
+    // all — both the server's own output validation and the calling
+    // client's validation would then reject any real structuredContent.
+    // Proxy tools for external MCP servers (lib/mcp/tools/mcp-proxy-tool.ts)
+    // don't cache the remote's *output* schema (only its input schema), so
+    // they pass {} to mean "genuinely unknown" — that must skip output
+    // validation entirely, not enforce an empty one. Every built-in tool
+    // always declares real output fields, so this is a no-op for them.
+    const hasOutputSchema = Object.keys(tool.outputSchema).length > 0;
     server.registerTool<OutputArgs, InputArgs>(
       tool.name,
       {
         description: tool.description,
         inputSchema: tool.inputSchema,
-        outputSchema: tool.outputSchema,
+        ...(hasOutputSchema ? { outputSchema: tool.outputSchema } : {}),
         ...(annotations ? { annotations } : {}),
       },
       tool.handler,
@@ -150,6 +165,39 @@ export async function createMcpServer(
       aiProvider,
     ),
   );
+
+  // Discovered tools from connected external MCP servers — proxied here,
+  // one registration per cached tool, so every existing tool-call path
+  // (grant checks, policy checks, ToolCall/RunStep recording) applies to
+  // them exactly as it does to any built-in tool. One connection failing
+  // to load must never break another connection's tools or the built-in
+  // ones (see the design spec's error-handling section) — each
+  // connection's registration is wrapped so a bad row can't take down the
+  // rest of the server build.
+  const mcpConnections = await integrationRepository.findIntegrationsByProvider(
+    organisationId,
+    integrationService.MCP_PROVIDER,
+  );
+  for (const connection of mcpConnections) {
+    try {
+      const config = connection.config as unknown as {
+        url: string;
+        tools: DiscoveredMcpTool[];
+      };
+      const token = connection.credentials?.token as string | undefined;
+      if (!token) continue;
+      for (const remoteTool of config.tools) {
+        register(
+          createMcpProxyTool(connection.id, config.url, token, remoteTool),
+          remoteTool.readOnlyHint === true ? readOnly : undefined,
+        );
+      }
+    } catch {
+      // Malformed cached config on this one row — skip it, don't fail the
+      // whole server build over one bad connection.
+      continue;
+    }
+  }
 
   return server;
 }
