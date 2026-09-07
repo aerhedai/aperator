@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { Mic, Plus } from "lucide-react";
+
 import {
   getChatRunStateAction,
   sendChatMessageAction,
@@ -75,34 +77,63 @@ export function ChatThread({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 overflow-y-auto px-6 py-4">
-        <MessageList steps={steps} />
-        {active && <ThinkingIndicator className="mt-3" />}
-        <div ref={bottomRef} />
+      <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="mx-auto max-w-2xl">
+          <MessageList steps={steps} />
+          {active && <ThinkingIndicator className="mt-4" />}
+          <div ref={bottomRef} />
+        </div>
       </div>
 
-      <div className="flex items-end gap-2 border-t border-border p-4">
-        <Textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              void handleSend();
+      <div className="px-6 pb-6">
+        <div className="mx-auto flex max-w-2xl flex-col gap-1 rounded-3xl border border-border bg-card p-3 shadow-sm">
+          <Textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void handleSend();
+              }
+            }}
+            placeholder={
+              active ? "Waiting for a reply…" : "Message the assistant…"
             }
-          }}
-          placeholder={
-            active ? "Waiting for a reply…" : "Message the assistant…"
-          }
-          disabled={active}
-          className="min-h-10 flex-1"
-        />
-        <Button
-          onClick={() => void handleSend()}
-          disabled={active || !draft.trim() || sending}
-        >
-          Send
-        </Button>
+            disabled={active}
+            className="min-h-10 resize-none border-none bg-transparent px-1 shadow-none focus-visible:ring-0"
+          />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-0.5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                disabled
+                aria-label="Attach a file"
+                className="text-muted-foreground"
+              >
+                <Plus className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                disabled
+                aria-label="Use voice"
+                className="text-muted-foreground"
+              >
+                <Mic className="size-4" />
+              </Button>
+            </div>
+            <Button
+              onClick={() => void handleSend()}
+              disabled={active || !draft.trim() || sending}
+              className="rounded-full px-4"
+            >
+              Send
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );
