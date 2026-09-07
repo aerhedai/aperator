@@ -37,7 +37,7 @@ export default async function EditAgentPage({
       : undefined;
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
+    <div className="flex flex-col gap-4 p-6">
       <h1 className="text-xl font-semibold">Edit {agent.name}</h1>
       <AgentForm
         action={updateAgentAction.bind(null, agent.id)}

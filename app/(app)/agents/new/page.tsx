@@ -14,7 +14,7 @@ export default async function NewAgentPage() {
   ]);
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
+    <div className="flex flex-col gap-4 p-6">
       <h1 className="text-xl font-semibold">Create agent</h1>
       <AgentForm
         action={createAgentAction}
