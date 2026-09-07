@@ -76,6 +76,7 @@ export interface ChatRunStepView {
   detail: string | null;
   toolName: string | null;
   toolStatus: "SUCCESS" | "FAILED" | null;
+  createdAt: Date;
 }
 
 export interface ChatRunStateView {
@@ -102,6 +103,7 @@ export async function getChatRunStateAction(
       detail: step.detail,
       toolName: step.toolCall?.toolName ?? null,
       toolStatus: step.toolCall?.status ?? null,
+      createdAt: step.createdAt,
     })),
   };
 }
