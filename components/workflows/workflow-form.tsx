@@ -6,7 +6,7 @@ import { useFormStatus } from "react-dom";
 import {
   createWorkflowAction,
   type WorkflowFormState,
-} from "@/app/(app)/workflows/actions";
+} from "@/app/(shell)/(app)/workflows/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

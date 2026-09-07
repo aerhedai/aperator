@@ -2,7 +2,7 @@
 
 import { useFormStatus } from "react-dom";
 
-import { deleteAgentAction } from "@/app/(app)/agents/[id]/actions";
+import { deleteAgentAction } from "@/app/(shell)/(app)/agents/[id]/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

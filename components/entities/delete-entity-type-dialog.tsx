@@ -2,7 +2,7 @@
 
 import { useFormStatus } from "react-dom";
 
-import { deleteEntityTypeAction } from "@/app/(app)/catalog/actions";
+import { deleteEntityTypeAction } from "@/app/(shell)/(app)/catalog/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

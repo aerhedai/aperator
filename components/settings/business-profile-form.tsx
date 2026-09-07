@@ -3,8 +3,8 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
-import { updateBusinessProfileAction } from "@/app/(app)/settings/actions";
-import type { BusinessProfileFormState } from "@/app/(app)/settings/actions";
+import { updateBusinessProfileAction } from "@/app/(shell)/(app)/settings/actions";
+import type { BusinessProfileFormState } from "@/app/(shell)/(app)/settings/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

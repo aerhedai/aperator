@@ -6,7 +6,7 @@ import { useFormStatus } from "react-dom";
 import {
   createWebhookAccountAction,
   type WebhookAccountFormState,
-} from "@/app/(app)/settings/actions";
+} from "@/app/(shell)/(app)/settings/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

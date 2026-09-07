@@ -14,9 +14,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const counts = await dashboardService.getDashboardCounts(organisation.id);
 
   return (
-    <div className="flex">
+    <div className="flex h-full">
       <Sidebar pendingApprovals={counts.waitingForApproval} />
-      <main className="min-w-0 flex-1">{children}</main>
+      <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
     </div>
   );
 }

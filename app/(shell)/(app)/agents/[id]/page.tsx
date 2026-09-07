@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import {
   runAgentAction,
   updateAgentStatusAction,
-} from "@/app/(app)/agents/[id]/actions";
+} from "@/app/(shell)/(app)/agents/[id]/actions";
 import { AgentStatusBadge } from "@/components/agents/agent-status-badge";
 import { DeleteAgentDialog } from "@/components/agents/delete-agent-dialog";
 import { RunAgentForm } from "@/components/agents/run-agent-form";

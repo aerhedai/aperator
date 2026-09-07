@@ -1,4 +1,4 @@
-import { createAgentAction } from "@/app/(app)/agents/actions";
+import { createAgentAction } from "@/app/(shell)/(app)/agents/actions";
 import { AgentForm } from "@/components/agents/agent-form";
 import * as templateService from "@/lib/agents/template-service";
 import * as integrationService from "@/lib/integrations/integration-service";
@@ -6,12 +6,25 @@ import { getCurrentOrganisation } from "@/lib/organisations/current-organisation
 
 export const dynamic = "force-dynamic";
 
-export default async function NewAgentPage() {
+export default async function NewAgentPage({
+  searchParams,
+}: PageProps<"/agents/new">) {
+  const { template: templateId } = await searchParams;
   const organisation = await getCurrentOrganisation();
   const [templates, gmailIntegrations] = await Promise.all([
     templateService.listTemplates(organisation.id),
     integrationService.listIntegrationsByProvider(organisation.id, "gmail"),
   ]);
+
+  // Arriving from the standalone /templates page with a template already
+  // chosen (?template=<id>) — resolved against this organisation's own
+  // list, the same one the in-form picker uses, so a stale or
+  // wrong-organisation id just falls through to no preselection rather
+  // than erroring.
+  const preselectedTemplate =
+    typeof templateId === "string"
+      ? templates.find((t) => t.id === templateId)
+      : undefined;
 
   return (
     <div className="flex flex-col gap-4 p-6">
@@ -20,6 +33,7 @@ export default async function NewAgentPage() {
         action={createAgentAction}
         submitLabel="Create agent"
         templates={templates}
+        preselectedTemplate={preselectedTemplate}
         gmailIntegrations={gmailIntegrations.map((i) => ({
           id: i.id,
           name: i.name,
