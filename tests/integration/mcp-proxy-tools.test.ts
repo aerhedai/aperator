@@ -7,6 +7,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 
+import { encryptToken } from "@/lib/crypto/token-cipher";
 import { prisma } from "@/lib/db/prisma";
 import * as integrationService from "@/lib/integrations/integration-service";
 import { createMcpServer } from "@/lib/mcp/server";
@@ -154,25 +155,32 @@ describe("mcp proxy tools", () => {
   });
 
   it("skips only a malformed connection's tools, leaving built-in tools and other connections intact", async () => {
-    await integrationService.connectMcpServer(organisationId, {
-      label: "Test Server",
-      url: testServer.url,
-      token: TEST_TOKEN,
-    });
+    const goodConnection = await integrationService.connectMcpServer(
+      organisationId,
+      { label: "Test Server", url: testServer.url, token: TEST_TOKEN },
+    );
     // Registration reads each connection's *cached* tool list (never a
     // live network call — see the Global Constraints), so the failure
     // this guards against is a malformed cache row, not a server that
-    // happens to be unreachable right now: a row with no `tools` array at
-    // all (predates this feature's expected config shape, or corrupted)
-    // makes the `for (const remoteTool of config.tools)` loop throw for
-    // that one connection only.
+    // happens to be unreachable right now. This row has a real-looking
+    // token — so the registration loop's `if (!token) continue;` short
+    // circuit does NOT fire for it — but its `config` has no `tools` key
+    // at all (predates this feature's expected config shape, or
+    // corrupted), so `for (const remoteTool of config.tools)` throws
+    // `TypeError: config.tools is not iterable` for this connection only,
+    // which is what the surrounding try/catch in
+    // lib/mcp/server.ts's registration loop actually guards against.
     await prisma.integration.create({
       data: {
         organisationId,
         provider: "mcp",
         name: "Malformed Connection",
-        config: {},
-        credentials: null,
+        config: { url: "https://example.test/mcp" },
+        // Must be genuinely decryptable — integrationRepository decrypts
+        // every row's credentials unconditionally when reading it back, so
+        // a raw plaintext object here would throw before the code under
+        // test (the registration loop's own try/catch) is ever reached.
+        credentials: encryptToken(JSON.stringify({ token: "x" })),
       },
     });
 
@@ -180,7 +188,9 @@ describe("mcp proxy tools", () => {
     try {
       const { tools } = await client.listTools();
       expect(tools.some((t) => t.name === "find_record")).toBe(true);
-      expect(tools.some((t) => t.name.startsWith("mcp:"))).toBe(true);
+      expect(
+        tools.some((t) => t.name === `mcp:${goodConnection.id}:search`),
+      ).toBe(true);
     } finally {
       await client.close();
     }
