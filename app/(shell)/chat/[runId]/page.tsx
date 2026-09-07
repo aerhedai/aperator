@@ -1,3 +1,5 @@
+import { Settings } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ChatThread } from "@/components/chat/chat-thread";
@@ -16,20 +18,30 @@ export default async function ChatThreadPage({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-baseline gap-2 px-6 py-4">
-        <h1 className="text-sm font-medium text-foreground">
-          {run.agent.name}
-        </h1>
-        <span className="text-xs text-muted-foreground">
-          {run.createdAt.toLocaleDateString("en-GB", {
-            day: "numeric",
-            month: "short",
-          })}
-          , {run.createdAt.toLocaleTimeString("en-GB", {
-            hour: "numeric",
-            minute: "2-digit",
-          })}
-        </span>
+      <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex items-baseline gap-2">
+          <h1 className="text-sm font-medium text-foreground">
+            {run.agent.name}
+          </h1>
+          <span className="text-xs text-muted-foreground">
+            {run.createdAt.toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+            })}
+            , {run.createdAt.toLocaleTimeString("en-GB", {
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+          </span>
+        </div>
+        <Link
+          href="/chat/settings"
+          aria-label="Assistant settings"
+          title="Assistant settings"
+          className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <Settings className="size-4" />
+        </Link>
       </div>
       <ChatThread
         runId={run.id}
