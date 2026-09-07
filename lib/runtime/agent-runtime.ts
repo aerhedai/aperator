@@ -372,7 +372,9 @@ export async function runAgent(
   }
 }
 
-async function loadSnapshotMessages(runId: string): Promise<AIMessage[]> {
+export async function loadSnapshotMessages(
+  runId: string,
+): Promise<AIMessage[]> {
   return ((await prisma.agentRun.findUniqueOrThrow({ where: { id: runId } }))
     .messages ?? []) as unknown as AIMessage[];
 }
@@ -532,19 +534,18 @@ export async function resumeRun(
 }
 
 /**
- * Resumes a CHAT-mode run that's WAITING_FOR_INPUT after the human sends
- * their next message — the chat analogue of resumeRun's approval-decision
- * path, but there's no approval to decide and no held-back tool call to
- * execute first: the snapshot is reloaded, the new message appended, and
- * the loop re-entered directly with a fresh step budget (same "resumed runs
- * get their own MAX_AGENT_STEPS" simplification as resumeRun).
+ * The synchronous half of resuming a WAITING_FOR_INPUT run: validates,
+ * echoes the human's message into the audit trail, and marks the run
+ * RUNNING — split out from continueChatRun so a caller that wants to defer
+ * the actual model turn (see runChatTurn) can still make the human's own
+ * message and the RUNNING status visible to a client immediately, before
+ * the slower part even starts.
  */
-export async function continueChatRun(
+export async function recordChatTurnStart(
   organisationId: string,
   runId: string,
   humanMessage: string,
-  provider?: AIProvider,
-): Promise<RunResult> {
+): Promise<Agent> {
   const run = await runRepository.findRunById(organisationId, runId);
   if (!run || run.status !== "WAITING_FOR_INPUT") {
     throw new Error("This chat is not waiting for a message.");
@@ -555,27 +556,43 @@ export async function continueChatRun(
 
   await runRepository.addRunStep(runId, "INPUT_RECEIVED", humanMessage);
   await runRepository.markRunStatus(runId, "RUNNING");
+  return run.agent;
+}
 
+/**
+ * Runs a CHAT-mode agent's turn against an already-RUNNING run and an
+ * explicit message array — the one piece shared by starting a brand new
+ * chat (messages = [system, user]) and continuing a paused one (messages =
+ * the reloaded snapshot with the new human turn appended, see
+ * continueChatRun). Always pauses on a text-only reply rather than
+ * completing (pauseOnTextResponse: true) — a CHAT-mode run's only other
+ * exits are FAILED/CANCELLED, never COMPLETED.
+ */
+export async function runChatTurn(
+  organisationId: string,
+  runId: string,
+  agent: Agent,
+  messages: AIMessage[],
+  provider?: AIProvider,
+): Promise<RunResult> {
   const mcpClient = await connectMcpClient(
     organisationId,
-    run.agent.actionIntegrationId,
-    run.agent.id,
+    agent.actionIntegrationId,
+    agent.id,
     0,
     provider,
   );
 
   try {
     const allowedTools = new Set(
-      await agentToolRepository.findToolNamesForAgent(run.agent.id),
+      await agentToolRepository.findToolNamesForAgent(agent.id),
     );
     const tools = await loadTools(mcpClient, allowedTools);
-    const messages = await loadSnapshotMessages(runId);
-    messages.push({ role: "user", content: humanMessage });
 
     return await runLoop({
       runId,
       organisationId,
-      agentModel: run.agent.model,
+      agentModel: agent.model,
       messages,
       tools,
       allowedTools,
@@ -593,4 +610,50 @@ export async function continueChatRun(
   } finally {
     await mcpClient.close();
   }
+}
+
+/**
+ * Creates a brand new CHAT-mode run and records its first human message —
+ * the "starting a chat" analogue of recordChatTurnStart, used the same way:
+ * a caller that wants to defer the model turn (see runChatTurn) can make
+ * the new run visible to a client immediately, before the slower part
+ * starts.
+ */
+export async function beginNewChatRun(
+  agent: Agent,
+  input: string,
+): Promise<string> {
+  const run = await runRepository.createRun(
+    agent.organisationId,
+    agent.id,
+    input,
+  );
+  await runRepository.markRunStatus(run.id, "RUNNING", {
+    startedAt: new Date(),
+  });
+  await runRepository.addRunStep(run.id, "INPUT_RECEIVED", input);
+  return run.id;
+}
+
+/**
+ * Resumes a CHAT-mode run that's WAITING_FOR_INPUT after the human sends
+ * their next message — the chat analogue of resumeRun's approval-decision
+ * path, but there's no approval to decide and no held-back tool call to
+ * execute first: the snapshot is reloaded, the new message appended, and
+ * the loop re-entered directly with a fresh step budget (same "resumed runs
+ * get their own MAX_AGENT_STEPS" simplification as resumeRun). Composes
+ * recordChatTurnStart + runChatTurn — callers that need the two halves on
+ * different sides of a response boundary (see app/(shell)/chat/actions.ts)
+ * call those directly instead.
+ */
+export async function continueChatRun(
+  organisationId: string,
+  runId: string,
+  humanMessage: string,
+  provider?: AIProvider,
+): Promise<RunResult> {
+  const agent = await recordChatTurnStart(organisationId, runId, humanMessage);
+  const messages = await loadSnapshotMessages(runId);
+  messages.push({ role: "user", content: humanMessage });
+  return runChatTurn(organisationId, runId, agent, messages, provider);
 }

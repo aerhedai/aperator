@@ -87,9 +87,17 @@ type AgentFormValues = Pick<
 // different code paths, see lib/runtime/run-agent-by-mode.ts) while leaving
 // routing looking unaffected, since dispatch.ts's classifyIntent only ever
 // reads instructions/model and never checks executionMode.
+//
+// CHAT is excluded for the identical reason LOOP is: pipelineKey is also
+// null for a CHAT agent, and this form's schema (agentInputSchema) has no
+// "chat" categoryType at all — saving one here would silently rewrite it to
+// HARNESS/"steps" too. CHAT-mode agents are edited from /chat/settings
+// instead, which is the only UI that creates one.
 function isLegacyPipeline(agent?: AgentFormValues): boolean {
   if (!agent) return false;
-  if (agent.executionMode === "LOOP") return true;
+  if (agent.executionMode === "LOOP" || agent.executionMode === "CHAT") {
+    return true;
+  }
   return agent.pipelineKey !== null && agent.pipelineKey !== "steps";
 }
 
