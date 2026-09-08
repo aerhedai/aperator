@@ -56,6 +56,28 @@ export async function listTemplates(
   }));
 }
 
+// Org-scoped single lookup, same visibility rule as listTemplates (a
+// built-in or one of this organisation's own) — used by the real
+// one-click install action, which only ever needs one row, not the whole
+// list.
+export async function getTemplate(
+  organisationId: string,
+  id: string,
+): Promise<TemplateSummary | null> {
+  const row = await prisma.agentTemplate.findFirst({
+    where: { id, OR: [{ organisationId: null }, { organisationId }] },
+  });
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    steps: row.steps,
+    suggestedTools: row.suggestedTools,
+    builtIn: row.organisationId === null,
+  };
+}
+
 export async function saveTemplate(
   organisationId: string,
   input: {

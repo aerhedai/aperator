@@ -2,7 +2,6 @@ import { z } from "zod";
 
 import type { AIProvider } from "@/lib/ai/provider";
 import { getAIProvider } from "@/lib/ai/organisation-ai-provider";
-import * as agentInvocationRepository from "@/lib/agents/agent-invocation-repository";
 import * as agentRepository from "@/lib/agents/agent-repository";
 import { runHarnessPipeline } from "@/lib/harness/run-harness-pipeline";
 import type { ToolName } from "@/lib/mcp/tool-registry";
@@ -20,12 +19,18 @@ const TOOL_NAME: ToolName = "invoke_agent";
 // #10: "There must always be safeguards against infinite agent loops."
 const MAX_INVOCATION_DEPTH = 3;
 
+export interface InvokableAgentSummary {
+  id: string;
+  name: string;
+  description: string;
+}
+
 const inputSchema = {
   agentId: z
     .string()
     .min(1)
     .describe(
-      "The id of the agent to invoke — must be one you were explicitly granted.",
+      "The id of the agent to invoke — must be one listed as available in this tool's own description.",
     ),
   input: z
     .string()
@@ -57,18 +62,37 @@ const STATUS_MAP: Record<string, z.infer<(typeof outputSchema)["status"]>> = {
   CANCELLED: "failed",
 };
 
+function buildDescription(invokableAgents: InvokableAgentSummary[]): string {
+  const base =
+    "Delegate a task to another agent already active in this organisation. Pass its id and the input text it should receive.";
+  if (invokableAgents.length === 0) {
+    return `${base} No other agents are currently available to invoke — do not call this tool.`;
+  }
+  const list = invokableAgents
+    .map((a) => `- id: ${a.id} — ${a.name}: ${a.description}`)
+    .join("\n");
+  return `${base}\n\nAgents you may currently invoke:\n${list}`;
+}
+
 /**
  * The one generic tool an orchestrator uses to delegate to another agent —
  * same "one tool, a parameter, not one tool per target" shape as
- * find_record's recordType (CLAUDE.md §4.5). Granting invoke_agent itself
- * only makes the *capability* available; which agents may actually be
- * named still requires an explicit AgentInvocationGrant row per pair — the
- * grant check below is what makes that real, not merely documented.
+ * find_record's recordType (CLAUDE.md §4.5).
  *
- * Workflows are not invocable here (see the architecture plan): their entry
- * point is trigger-shaped inbound data, not a plain string, and fabricating
- * a synthetic trigger payload to force-fit them is a separate problem left
- * for later.
+ * Which agents are actually nameable is *not* a per-orchestrator grant any
+ * more (see Agent.chatInvokable in schema.prisma) — it's "every active
+ * agent in the organisation that hasn't been individually excluded,"
+ * computed fresh by the caller (lib/mcp/server.ts) and passed in as
+ * `invokableAgents`. That list does double duty: it's both what gets
+ * embedded in this tool's description (so the model actually knows what
+ * exists, rather than being told to guess an id) and the enforcement set
+ * the handler checks against — the two can never drift apart because
+ * they're the same array.
+ *
+ * Workflows are not invocable here (see the architecture plan): their
+ * entry point is trigger-shaped inbound data, not a plain string, and
+ * fabricating a synthetic trigger payload to force-fit them is a separate
+ * problem left for later.
  */
 export function createInvokeAgentTool(
   organisationId: string,
@@ -80,11 +104,11 @@ export function createInvokeAgentTool(
   // delegated run. Falls back to resolving one only when a caller genuinely
   // has none in scope (there is no real call site that omits it today).
   provider?: AIProvider,
+  invokableAgents: InvokableAgentSummary[] = [],
 ) {
   return {
     name: TOOL_NAME,
-    description:
-      "Delegate a task to another agent this orchestrator has been granted access to invoke. Pass its id and the input text it should receive.",
+    description: buildDescription(invokableAgents),
     inputSchema,
     outputSchema,
     handler: async ({ agentId, input }: { agentId: string; input: string }) => {
@@ -100,13 +124,10 @@ export function createInvokeAgentTool(
         );
       }
 
-      const granted = await agentInvocationRepository.isAgentInvocationGranted(
-        callerAgentId,
-        agentId,
-      );
-      if (!granted) {
+      const isInvokable = invokableAgents.some((a) => a.id === agentId);
+      if (!isInvokable) {
         return toolError(
-          `This agent has not been granted permission to invoke agent "${agentId}".`,
+          `"${agentId}" is not an agent this orchestrator may currently invoke — it may not exist, may not be active, or may have been individually excluded from invocation.`,
         );
       }
 

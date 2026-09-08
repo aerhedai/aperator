@@ -3,12 +3,23 @@
 import { Search } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useFormStatus } from "react-dom";
 
+import { installAgentTemplateAction } from "@/app/(shell)/(app)/agents/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { TemplateSummary } from "@/lib/agents/template-service";
+
+function InstallButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" disabled={pending}>
+      {pending ? "Installing…" : "Install"}
+    </Button>
+  );
+}
 
 /**
  * The standalone template library (/templates) and the in-form picker
@@ -70,16 +81,24 @@ export function TemplateLibrary({
                 <p className="flex-1 text-sm text-muted-foreground">
                   {template.description}
                 </p>
-                <Button
-                  nativeButton={false}
-                  render={
-                    <Link
-                      href={`/agents/new?template=${encodeURIComponent(template.id)}`}
-                    />
-                  }
-                >
-                  Use this
-                </Button>
+                <div className="flex items-center gap-2">
+                  <form
+                    action={installAgentTemplateAction.bind(null, template.id)}
+                  >
+                    <InstallButton />
+                  </form>
+                  <Button
+                    variant="outline"
+                    nativeButton={false}
+                    render={
+                      <Link
+                        href={`/agents/new?template=${encodeURIComponent(template.id)}`}
+                      />
+                    }
+                  >
+                    Customize first
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}

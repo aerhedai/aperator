@@ -4,7 +4,10 @@ import { getCurrentOrganisation } from "@/lib/organisations/current-organisation
 
 export const dynamic = "force-dynamic";
 
-export default async function TemplatesPage() {
+export default async function TemplatesPage({
+  searchParams,
+}: PageProps<"/templates">) {
+  const { error } = await searchParams;
   const organisation = await getCurrentOrganisation();
   const templates = await templateService.listTemplates(organisation.id);
 
@@ -18,6 +21,10 @@ export default async function TemplatesPage() {
           editable afterwards.
         </p>
       </div>
+
+      {typeof error === "string" && (
+        <p className="text-sm text-destructive">{error}</p>
+      )}
 
       <TemplateLibrary templates={templates} />
     </div>

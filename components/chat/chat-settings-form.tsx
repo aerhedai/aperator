@@ -134,12 +134,14 @@ export function ChatSettingsForm({
       <div className="flex flex-col gap-2">
         <Label>Agents this can invoke</Label>
         <p className="text-xs text-muted-foreground">
-          Having the &ldquo;Invoke agent&rdquo; tool above isn&rsquo;t enough on
-          its own — it can only actually delegate to the agents ticked here.
+          Every agent in this organisation is available to the assistant by
+          default (as long as the &ldquo;Invoke agent&rdquo; tool above is also
+          ticked) — untick any you&rsquo;d rather keep off-limits.
         </p>
         {candidates.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No other agents exist yet to grant access to.
+            No other agents exist yet — anything you create next will be
+            available to the assistant automatically.
           </p>
         ) : (
           <div className="flex flex-col gap-2 rounded-md border border-border p-3">
