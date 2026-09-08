@@ -2,15 +2,99 @@ import { getAIProvider } from "@/lib/ai/organisation-ai-provider";
 import type { AIProvider } from "@/lib/ai/provider";
 import type { WorkflowTriggerType } from "@/lib/generated/prisma/client";
 import type { ResolvedAttachment } from "@/lib/harness/types";
+import { runHarnessPipeline } from "@/lib/harness/run-harness-pipeline";
 import { classifyIntent } from "@/lib/routing/classify-intent";
 import { deterministicClassify } from "@/lib/routing/deterministic-classify";
-import { runAgentByExecutionMode } from "@/lib/runtime/run-agent-by-mode";
 import type { RunResult } from "@/lib/runtime/agent-runtime";
+import { runAgent } from "@/lib/runtime/agent-runtime";
+import { runAgentByExecutionMode } from "@/lib/runtime/run-agent-by-mode";
 import * as workflowService from "@/lib/workflows/workflow-service";
 
 export type DispatchResult =
   | { matched: true; agentId: string; agentName: string; run: RunResult }
   | { matched: false; reason: "no_workflow" | "no_match" };
+
+// The narrower of the two shapes findActiveWorkflowForDispatch and
+// getWorkflow actually return (the latter's `agent` also carries
+// tools/_count) — a structural type rather than either query's exact
+// inferred type, so both call sites below can hand their own richer
+// result to the same classification logic with no casting.
+type DispatchableWorkflow = NonNullable<
+  Awaited<ReturnType<typeof workflowService.findActiveWorkflowForDispatch>>
+>;
+
+type HandlerSelection =
+  | {
+      ok: true;
+      handlerAgent: DispatchableWorkflow["members"][number]["agent"];
+      resolvedProvider: AIProvider;
+    }
+  | { ok: false; reason: "no_workflow" | "no_match" };
+
+/**
+ * The part of dispatch that's genuinely shared between "a real inbound
+ * trigger fired" (dispatchInboundMessage) and "chat asked this workflow
+ * directly" (dispatchToWorkflowById): which handler, if any, a workflow's
+ * classifier would pick for this input. Deliberately stops short of
+ * running anything — the two callers run their chosen handler through
+ * different execution paths (see their own doc comments for why), so
+ * unifying that part too would either regress the trigger-driven path's
+ * depth semantics or silently skip them for the chat-driven one.
+ */
+async function selectHandler(
+  workflow: DispatchableWorkflow,
+  input: string,
+  provider?: AIProvider,
+): Promise<HandlerSelection> {
+  const classifierMember = workflow.members.find(
+    (m) => m.role === "CLASSIFIER",
+  );
+  const handlerMembers = workflow.members.filter(
+    (m) => m.role === "HANDLER" && m.agent.status === "ACTIVE",
+  );
+  if (!classifierMember || handlerMembers.length === 0) {
+    return { ok: false, reason: "no_workflow" };
+  }
+
+  const resolvedProvider =
+    provider ?? (await getAIProvider(workflow.organisationId));
+
+  const matchedAgentId =
+    (handlerMembers.length === 1
+      ? (handlerMembers[0]?.agent.id ?? null)
+      : null) ??
+    deterministicClassify(
+      input,
+      handlerMembers.map((m) => ({
+        id: m.agent.id,
+        keywords: m.agent.keywords,
+      })),
+    ) ??
+    (await classifyIntent(
+      {
+        model: classifierMember.agent.model,
+        instructions: classifierMember.agent.instructions,
+      },
+      input,
+      handlerMembers.map((m) => ({
+        id: m.agent.id,
+        name: m.agent.name,
+        description: m.agent.description,
+      })),
+      resolvedProvider,
+    ));
+
+  if (!matchedAgentId) {
+    return { ok: false, reason: "no_match" };
+  }
+
+  const handler = handlerMembers.find((m) => m.agent.id === matchedAgentId);
+  if (!handler) {
+    return { ok: false, reason: "no_match" };
+  }
+
+  return { ok: true, handlerAgent: handler.agent, resolvedProvider };
+}
 
 /**
  * Runs a Workflow's classifier against an inbound message and, if it picks
@@ -62,84 +146,94 @@ export async function dispatchInboundMessage(
     return { matched: false, reason: "no_workflow" };
   }
 
-  const classifierMember = workflow.members.find(
-    (m) => m.role === "CLASSIFIER",
-  );
-  const handlerMembers = workflow.members.filter(
-    (m) => m.role === "HANDLER" && m.agent.status === "ACTIVE",
-  );
-  if (!classifierMember || handlerMembers.length === 0) {
-    return { matched: false, reason: "no_workflow" };
-  }
-
-  // Resolved here, not before — everything above this point (no active
-  // workflow, no classifier, no active handler) can return without ever
-  // needing an AI provider. Resolved unconditionally from this point on,
-  // even though the deterministic keyword fast path just below sometimes
-  // means the LLM is never actually called this time — a deliberate
-  // simplification: fully deferring resolution until the exact call that
-  // needs it would mean threading a lazy resolver through classifyIntent
-  // and every HARNESS pipeline instead of a resolved value, for a case
-  // (a workflow exists, its config makes classification keyword-only, and
-  // the matched pipeline happens to be one of the zero-LLM ones) that's
-  // real but narrow.
-  const resolvedProvider = provider ?? (await getAIProvider(organisationId));
-
-  // Fastest path: with exactly one active handler there is no routing
-  // decision to make — the classifier would be asked a question with one
-  // possible answer, and paying for an LLM call to hear it back is pure
-  // waste. Deliberately checked before the keyword path, since it holds
-  // regardless of whether any keywords are configured.
-  const matchedAgentId =
-    (handlerMembers.length === 1
-      ? (handlerMembers[0]?.agent.id ?? null)
-      : null) ??
-    // Fast path: a deterministic keyword match skips the LLM classify call
-    // entirely. Only falls through to it on ambiguity (see
-    // deterministic-classify.ts) — the LLM remains the safety net, not the
-    // primary mechanism.
-    deterministicClassify(
-      input,
-      handlerMembers.map((m) => ({
-        id: m.agent.id,
-        keywords: m.agent.keywords,
-      })),
-    ) ??
-    (await classifyIntent(
-      {
-        model: classifierMember.agent.model,
-        instructions: classifierMember.agent.instructions,
-      },
-      input,
-      handlerMembers.map((m) => ({
-        id: m.agent.id,
-        name: m.agent.name,
-        description: m.agent.description,
-      })),
-      resolvedProvider,
-    ));
-
-  if (!matchedAgentId) {
-    return { matched: false, reason: "no_match" };
-  }
-
-  const handler = handlerMembers.find((m) => m.agent.id === matchedAgentId);
-  if (!handler) {
-    return { matched: false, reason: "no_match" };
+  const selection = await selectHandler(workflow, input, provider);
+  if (!selection.ok) {
+    return { matched: false, reason: selection.reason };
   }
 
   const run = await runAgentByExecutionMode(
-    handler.agent,
+    selection.handlerAgent,
     input,
-    resolvedProvider,
+    selection.resolvedProvider,
     senderEmail,
     getAttachments,
   );
 
   return {
     matched: true,
-    agentId: handler.agent.id,
-    agentName: handler.agent.name,
+    agentId: selection.handlerAgent.id,
+    agentName: selection.handlerAgent.name,
+    run,
+  };
+}
+
+export type DispatchToWorkflowResult =
+  | { matched: true; agentId: string; agentName: string; run: RunResult }
+  | {
+      matched: false;
+      reason: "not_found" | "inactive" | "no_workflow" | "no_match";
+    };
+
+/**
+ * The chat-initiated counterpart to dispatchInboundMessage — looked up by
+ * workflow id directly rather than "the active workflow for this
+ * trigger," since chat is naming a specific department, not simulating a
+ * real inbound trigger. Everything from here on reuses the exact same
+ * classification logic (selectHandler) a real trigger would go through,
+ * so a workflow behaves identically whether an email arrived or chat
+ * asked it directly.
+ *
+ * Deliberately does *not* go through runAgentByExecutionMode: that
+ * helper always runs at depth 0 (correct for a real trigger, which is
+ * always the root of a run), but a workflow invoked by chat is itself
+ * one hop into a call chain that already has a depth — mirrors
+ * invoke_agent's own tool handler, which calls runAgent/runHarnessPipeline
+ * directly for the same reason. HARNESS handlers don't receive
+ * invocationDepth at all (same as invoke_agent's target dispatch): a step
+ * programme has no step kind that itself invokes an agent or a workflow,
+ * so it cannot recurse regardless.
+ */
+export async function dispatchToWorkflowById(
+  organisationId: string,
+  workflowId: string,
+  input: string,
+  invocationDepth: number,
+  provider?: AIProvider,
+): Promise<DispatchToWorkflowResult> {
+  const workflow = await workflowService.getWorkflow(
+    organisationId,
+    workflowId,
+  );
+  if (!workflow) {
+    return { matched: false, reason: "not_found" };
+  }
+  if (workflow.status !== "ACTIVE") {
+    return { matched: false, reason: "inactive" };
+  }
+
+  const selection = await selectHandler(workflow, input, provider);
+  if (!selection.ok) {
+    return { matched: false, reason: selection.reason };
+  }
+
+  const run =
+    selection.handlerAgent.executionMode === "HARNESS"
+      ? await runHarnessPipeline(
+          selection.handlerAgent,
+          input,
+          selection.resolvedProvider,
+        )
+      : await runAgent(
+          selection.handlerAgent,
+          input,
+          selection.resolvedProvider,
+          invocationDepth + 1,
+        );
+
+  return {
+    matched: true,
+    agentId: selection.handlerAgent.id,
+    agentName: selection.handlerAgent.name,
     run,
   };
 }

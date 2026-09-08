@@ -104,6 +104,13 @@ export const TOOL_REGISTRY = [
       "Delegate a task to another agent this one has been explicitly granted access to invoke.",
   },
   {
+    name: "invoke_workflow",
+    group: "Orchestration",
+    label: "Invoke workflow",
+    description:
+      "Ask a workflow's own classifier to decide which of its agents should handle something.",
+  },
+  {
     name: "list_templates",
     group: "Orchestration",
     label: "List templates",
