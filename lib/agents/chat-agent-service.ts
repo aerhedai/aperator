@@ -7,7 +7,18 @@ const DEFAULT_NAME = "Assistant";
 const DEFAULT_DESCRIPTION =
   "Chats with your team and delegates to your agents and tools when useful.";
 const DEFAULT_INSTRUCTIONS =
-  "You are this business's assistant. Answer directly when you can. When a task needs one of your agents, use invoke_agent rather than guessing at the answer yourself. Be concise, and say plainly when you can't do something.";
+  "You are this business's assistant. Answer directly when you can. When a task needs one of your agents, use invoke_agent rather than guessing at the answer yourself. If nothing you have can do what's being asked, check list_templates before saying so — install_template can set up a new agent for it on the spot. Be concise, say plainly when you can't do something, and say plainly when you've just installed something new.";
+
+// Granted to every chat agent from the moment it's created — this is
+// what makes "the business can always ask for more, any time" (not just
+// at some separate setup step) actually true: chat can see what's
+// available (list_templates) and act on it (install_template) in the
+// same conversation, not just delegate to what already exists.
+const DEFAULT_TOOL_NAMES = [
+  "invoke_agent",
+  "list_templates",
+  "install_template",
+];
 
 export function findChatAgent(organisationId: string): Promise<Agent | null> {
   return prisma.agent.findFirst({
@@ -46,7 +57,7 @@ export async function getOrCreateChatAgent(
       executionMode: "CHAT",
     },
   });
-  await agentToolRepository.setToolsForAgent(agent.id, ["invoke_agent"]);
+  await agentToolRepository.setToolsForAgent(agent.id, DEFAULT_TOOL_NAMES);
   return agent;
 }
 

@@ -3,7 +3,6 @@
 import { redirect } from "next/navigation";
 
 import * as agentService from "@/lib/agents/agent-service";
-import { DEFAULT_AGENT_MODEL } from "@/lib/agents/default-agent-config";
 import {
   parsePipelineConfigForm,
   resolveCategoryType,
@@ -138,66 +137,21 @@ export async function updateAgentAction(
  * The real one-click "install" — as opposed to template-picker.tsx's
  * onInstall, which only pre-fills the *in-progress* create-agent form's
  * client state and produces nothing until a human submits it by hand.
- * This actually creates a working Agent: same categoryType: "steps" every
- * agent created through the form uses, the template's own suggested tools
- * granted immediately, and its step programme run through the exact same
- * validation createAgentAction itself applies — a template that wouldn't
- * pass here couldn't have been saved as one in the first place
- * (template-service.ts's saveTemplate already checks stepProgrammeSchema),
- * so this should only ever fail for a suggested tool that's since stopped
- * existing (e.g. a disconnected MCP server).
- *
- * chatInvokable defaults to true (schema.prisma), so the installed agent
- * is immediately callable from chat with no separate grant step — the
- * whole point of pairing this with the default-allow invocation model.
+ * The actual work (validation + creation) lives in
+ * templateService.installTemplate, shared with the install_template tool
+ * so a human clicking this button and chat acting on its own initiative
+ * go through identical logic.
  */
 export async function installAgentTemplateAction(
   templateId: string,
 ): Promise<void> {
   const organisation = await getCurrentOrganisation();
-  const template = await templateService.getTemplate(
+  const result = await templateService.installTemplate(
     organisation.id,
     templateId,
   );
-  if (!template) {
-    redirect(`/templates?error=${encodeURIComponent("Template not found.")}`);
+  if (!result.ok) {
+    redirect(`/templates?error=${encodeURIComponent(result.error)}`);
   }
-
-  const parsed = agentInputSchema.safeParse({
-    name: template.name,
-    description: template.description,
-    instructions: `Follow the "${template.name}" process: ${template.description}`,
-    model: DEFAULT_AGENT_MODEL,
-    categoryType: "steps",
-    toolNames: template.suggestedTools,
-    pipelineConfig: template.steps,
-  });
-  if (!parsed.success) {
-    redirect(
-      `/templates?error=${encodeURIComponent(
-        parsed.error.issues.map((i) => i.message).join("; "),
-      )}`,
-    );
-  }
-
-  const validated = validatePipelineConfig("steps", parsed.data.pipelineConfig);
-  if ("error" in validated) {
-    redirect(`/templates?error=${encodeURIComponent(validated.error)}`);
-  }
-
-  let agentId: string;
-  try {
-    const agent = await agentService.createAgent(organisation.id, {
-      ...parsed.data,
-      pipelineConfig: validated.config,
-    });
-    agentId = agent.id;
-  } catch (error) {
-    const message =
-      error instanceof agentService.ToolGrantError
-        ? error.message
-        : "Couldn't install this template.";
-    redirect(`/templates?error=${encodeURIComponent(message)}`);
-  }
-  redirect(`/agents/${agentId}`);
+  redirect(`/agents/${result.agentId}`);
 }

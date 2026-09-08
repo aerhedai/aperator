@@ -1,4 +1,8 @@
+import * as agentService from "@/lib/agents/agent-service";
 import { BUILT_IN_TEMPLATES } from "@/lib/agents/built-in-templates";
+import { DEFAULT_AGENT_MODEL } from "@/lib/agents/default-agent-config";
+import { validatePipelineConfig } from "@/lib/agents/pipeline-config-form";
+import { agentInputSchema } from "@/lib/agents/schemas";
 import { prisma } from "@/lib/db/prisma";
 import { stepProgrammeSchema } from "@/lib/harness/steps/schema";
 
@@ -76,6 +80,74 @@ export async function getTemplate(
     suggestedTools: row.suggestedTools,
     builtIn: row.organisationId === null,
   };
+}
+
+export type InstallTemplateResult =
+  | { ok: true; agentId: string; agentName: string }
+  | { ok: false; error: string };
+
+/**
+ * The one real "install" path — shared by the /templates page's Install
+ * button (app/(shell)/(app)/agents/actions.ts) and the install_template
+ * tool (lib/mcp/tools/install-template.ts), so a business clicking a
+ * button and chat acting on its own initiative produce identical agents
+ * through identical validation, not two versions of "install" that could
+ * quietly drift apart.
+ *
+ * Runs the template through the exact same categoryType: "steps" shape
+ * and validation every hand-built agent goes through
+ * (createAgentAction) — a template that wouldn't pass here couldn't have
+ * been saved as one in the first place (saveTemplate already checks
+ * stepProgrammeSchema), so this should only ever fail for a suggested
+ * tool that's since stopped existing (e.g. a disconnected MCP server).
+ * The created agent is DRAFT, same as any hand-built one — installing a
+ * template, whether by a human or by chat on a business's behalf, is
+ * still a starting point that gets reviewed before it does anything, not
+ * a live action in itself.
+ */
+export async function installTemplate(
+  organisationId: string,
+  templateId: string,
+): Promise<InstallTemplateResult> {
+  const template = await getTemplate(organisationId, templateId);
+  if (!template) {
+    return { ok: false, error: "Template not found." };
+  }
+
+  const parsed = agentInputSchema.safeParse({
+    name: template.name,
+    description: template.description,
+    instructions: `Follow the "${template.name}" process: ${template.description}`,
+    model: DEFAULT_AGENT_MODEL,
+    categoryType: "steps",
+    toolNames: template.suggestedTools,
+    pipelineConfig: template.steps,
+  });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues.map((i) => i.message).join("; "),
+    };
+  }
+
+  const validated = validatePipelineConfig("steps", parsed.data.pipelineConfig);
+  if ("error" in validated) {
+    return { ok: false, error: validated.error };
+  }
+
+  try {
+    const agent = await agentService.createAgent(organisationId, {
+      ...parsed.data,
+      pipelineConfig: validated.config,
+    });
+    return { ok: true, agentId: agent.id, agentName: agent.name };
+  } catch (error) {
+    const message =
+      error instanceof agentService.ToolGrantError
+        ? error.message
+        : "Couldn't install this template.";
+    return { ok: false, error: message };
+  }
 }
 
 export async function saveTemplate(
