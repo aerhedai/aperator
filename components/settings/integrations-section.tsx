@@ -1,6 +1,9 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
+
+import { Plus, Search } from "lucide-react";
 
 import {
   disconnectAllAccountsAction,
@@ -22,9 +25,28 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { GMAIL_INBOX_LABEL } from "@/lib/integrations/gmail/client";
-import { INTEGRATION_REGISTRY } from "@/lib/integrations/integration-registry";
+import {
+  INTEGRATION_REGISTRY,
+  type IntegrationProviderName,
+} from "@/lib/integrations/integration-registry";
 import { OUTLOOK_INBOX_FOLDER } from "@/lib/integrations/outlook/client";
+
+const MCP_PROVIDER: IntegrationProviderName = "mcp";
+
+// Every first-party integration a business can search for and connect.
+// "mcp" is deliberately excluded — connecting a custom MCP server isn't
+// "one account of a fixed provider," it's an open-ended list of distinct
+// servers, so it gets its own always-visible action (AddMcpServerDialog)
+// next to the search bar instead of competing for space in a searchable
+// grid of fixed providers.
+const SEARCHABLE_INTEGRATIONS = INTEGRATION_REGISTRY.filter(
+  (entry) => entry.provider !== MCP_PROVIDER,
+);
+const MCP_REGISTRY_ENTRY = INTEGRATION_REGISTRY.find(
+  (entry) => entry.provider === MCP_PROVIDER,
+)!;
 
 export interface DisplayAccount {
   id: string;
@@ -179,9 +201,6 @@ function ConnectOrAddAccount({
   if (provider === "webhook") {
     return <WebhookAccountForm baseUrl={baseUrl} />;
   }
-  if (provider === "mcp") {
-    return <McpServerConnectForm />;
-  }
   return null;
 }
 
@@ -233,15 +252,6 @@ function ConfigureDialog({
             >
               <span className="font-mono">{account.name}</span>
               <div className="flex items-center gap-2">
-                {entry.provider === "mcp" && (
-                  <form
-                    action={refreshMcpServerToolsAction.bind(null, account.id)}
-                  >
-                    <Button type="submit" variant="outline" size="sm">
-                      Refresh tools
-                    </Button>
-                  </form>
-                )}
                 <form
                   action={disconnectIntegrationAction.bind(null, account.id)}
                 >
@@ -331,7 +341,13 @@ function IntegrationCard({
           </div>
         </div>
 
-        <p className="flex-1 text-sm text-muted-foreground">
+        {/* line-clamp fixes the card's text to a constant number of
+            lines (never reflowing to more or fewer) so the card's own
+            height stays put as the sidebar's collapse animation resizes
+            this grid — without it, a description that wraps differently
+            at each intermediate width makes every card visibly reflow
+            mid-transition. */}
+        <p className="line-clamp-3 flex-1 text-sm text-muted-foreground">
           {entry.description}
         </p>
 
@@ -357,6 +373,69 @@ function IntegrationCard({
   );
 }
 
+// Connecting a custom MCP server isn't "add another account of a known
+// provider" — there's no fixed entry for it to occupy in the searchable
+// grid above, just an open-ended list of distinct servers. This is that
+// server's entry point instead: always visible next to the search bar,
+// same connect form the old mcp card used.
+function AddMcpServerDialog() {
+  return (
+    <Dialog>
+      <DialogTrigger
+        render={
+          <Button variant="outline">
+            <Plus className="size-4" />
+            Add MCP server
+          </Button>
+        }
+      />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Connect an MCP server</DialogTitle>
+          <DialogDescription>
+            {MCP_REGISTRY_ENTRY.description}
+          </DialogDescription>
+        </DialogHeader>
+        <McpServerConnectForm />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// A flat list rather than the single-card-with-a-dialog pattern the fixed
+// providers use above: each row here is a genuinely distinct server (its
+// own URL and credentials), not an interchangeable "account" of one
+// provider, so there's nothing to group behind a "Configure" dialog.
+function ConnectedMcpServers({ accounts }: { accounts: DisplayAccount[] }) {
+  if (accounts.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm font-medium">Connected MCP servers</p>
+      {accounts.map((account) => (
+        <div
+          key={account.id}
+          className="flex items-center justify-between rounded-md border border-border p-3 text-sm"
+        >
+          <span className="font-mono">{account.name}</span>
+          <div className="flex items-center gap-2">
+            <form action={refreshMcpServerToolsAction.bind(null, account.id)}>
+              <Button type="submit" variant="outline" size="sm">
+                Refresh tools
+              </Button>
+            </form>
+            <form action={disconnectIntegrationAction.bind(null, account.id)}>
+              <Button type="submit" variant="outline" size="sm">
+                Disconnect
+              </Button>
+            </form>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function IntegrationsSection({
   accountsByProvider,
   connectedProvider,
@@ -368,9 +447,18 @@ export function IntegrationsSection({
   errorMessage?: string;
   baseUrl: string;
 }) {
+  const [search, setSearch] = useState("");
   const connectedLabel = INTEGRATION_REGISTRY.find(
     (entry) => entry.provider === connectedProvider,
   )?.label;
+
+  const filteredIntegrations = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return SEARCHABLE_INTEGRATIONS;
+    return SEARCHABLE_INTEGRATIONS.filter((entry) =>
+      entry.label.toLowerCase().includes(query),
+    );
+  }, [search]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -383,16 +471,38 @@ export function IntegrationsSection({
         <p className="text-sm text-destructive">{errorMessage}</p>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {INTEGRATION_REGISTRY.map((entry) => (
-          <IntegrationCard
-            key={entry.provider}
-            entry={entry}
-            accounts={accountsByProvider[entry.provider] ?? []}
-            baseUrl={baseUrl}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search integrations…"
+            aria-label="Search integrations"
+            className="pl-8"
           />
-        ))}
+        </div>
+        <AddMcpServerDialog />
       </div>
+
+      {filteredIntegrations.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          No integrations match &ldquo;{search}&rdquo;.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {filteredIntegrations.map((entry) => (
+            <IntegrationCard
+              key={entry.provider}
+              entry={entry}
+              accounts={accountsByProvider[entry.provider] ?? []}
+              baseUrl={baseUrl}
+            />
+          ))}
+        </div>
+      )}
+
+      <ConnectedMcpServers accounts={accountsByProvider[MCP_PROVIDER] ?? []} />
     </div>
   );
 }

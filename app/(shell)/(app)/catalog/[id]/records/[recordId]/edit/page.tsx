@@ -23,7 +23,7 @@ export default async function EditEntityRecordPage({
   const fields = entityFieldsSchema.parse(entityType.fields);
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
+    <div className="mx-auto flex max-w-2xl flex-col gap-6">
       <h1 className="text-xl font-semibold">Edit {entityType.name} record</h1>
       <EntityRecordForm
         entityTypeId={id}

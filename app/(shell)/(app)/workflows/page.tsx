@@ -16,7 +16,7 @@ export default async function WorkflowsPage() {
   const connectedProviders = new Set(integrations.map((i) => i.provider));
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Workflows</h1>
         <div className="flex items-center gap-4">

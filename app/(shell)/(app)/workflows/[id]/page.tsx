@@ -73,7 +73,7 @@ export default async function WorkflowDetailPage({
       : null;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+    <div className="mx-auto flex max-w-3xl flex-col gap-6">
       {typeof activationError === "string" && (
         <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
           {activationError}

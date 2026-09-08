@@ -9,7 +9,7 @@ export default async function TemplatesPage() {
   const templates = await templateService.listTemplates(organisation.id);
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold">Templates</h1>
         <p className="text-sm text-muted-foreground">

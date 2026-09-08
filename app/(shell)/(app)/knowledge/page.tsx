@@ -13,7 +13,7 @@ export default async function KnowledgePage() {
   const documents = await listDocuments(organisation.id);
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h1 className="text-xl font-semibold">Knowledge</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
