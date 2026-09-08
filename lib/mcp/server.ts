@@ -15,6 +15,7 @@ import { createFindRecordTool } from "@/lib/mcp/tools/find-record";
 import { createInstallTemplateTool } from "@/lib/mcp/tools/install-template";
 import { createInstallWorkflowTemplateTool } from "@/lib/mcp/tools/install-workflow-template";
 import { createInvokeAgentTool } from "@/lib/mcp/tools/invoke-agent";
+import { createListInvokableTool } from "@/lib/mcp/tools/list-invokable";
 import { createInvokeWorkflowTool } from "@/lib/mcp/tools/invoke-workflow";
 import { createListTemplatesTool } from "@/lib/mcp/tools/list-templates";
 import { createMcpProxyTool } from "@/lib/mcp/tools/mcp-proxy-tool";
@@ -163,7 +164,14 @@ export async function createMcpServer(
   register(createSaveFileTool(organisationId));
   register(createPopulateTemplateTool(organisationId));
 
-  // Orchestration — every active agent in the org is invokable by default
+  // Orchestration — list_invokable first: it re-queries live at call time
+  // (unlike invoke_agent/invoke_workflow's own descriptions below, which
+  // are fixed strings computed once when this server is built and can go
+  // stale for the rest of a turn the moment something is installed
+  // mid-loop) — see its own doc comment for why that distinction matters.
+  register(createListInvokableTool(organisationId, callerAgentId), readOnly);
+
+  // Every active agent in the org is invokable by default
   // (Agent.chatInvokable), so the set the model is actually told about is
   // computed fresh here rather than read from a per-caller grant table.
   // CHAT-mode agents are excluded (nothing invokes the one chat agent an
