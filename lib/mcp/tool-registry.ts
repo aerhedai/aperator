@@ -103,6 +103,20 @@ export const TOOL_REGISTRY = [
     description:
       "Delegate a task to another agent this one has been explicitly granted access to invoke.",
   },
+  {
+    name: "list_templates",
+    group: "Orchestration",
+    label: "List templates",
+    description:
+      "See which pre-built agent templates are available to install for this organisation.",
+  },
+  {
+    name: "install_template",
+    group: "Orchestration",
+    label: "Install template",
+    description:
+      "Install a pre-built agent template, creating a real (draft) agent from it.",
+  },
 ] as const;
 
 export type ToolName = (typeof TOOL_REGISTRY)[number]["name"];

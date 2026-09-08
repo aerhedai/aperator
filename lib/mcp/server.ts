@@ -12,7 +12,9 @@ import { createCreateCalendarEventTool } from "@/lib/mcp/tools/create-calendar-e
 import { createCreateFolderTool } from "@/lib/mcp/tools/create-folder";
 import { createCreateRecordTool } from "@/lib/mcp/tools/create-record";
 import { createFindRecordTool } from "@/lib/mcp/tools/find-record";
+import { createInstallTemplateTool } from "@/lib/mcp/tools/install-template";
 import { createInvokeAgentTool } from "@/lib/mcp/tools/invoke-agent";
+import { createListTemplatesTool } from "@/lib/mcp/tools/list-templates";
 import { createMcpProxyTool } from "@/lib/mcp/tools/mcp-proxy-tool";
 import { createNotifyChannelTool } from "@/lib/mcp/tools/notify-channel";
 import { createPopulateTemplateTool } from "@/lib/mcp/tools/populate-template";
@@ -183,6 +185,8 @@ export async function createMcpServer(
       invokableAgents,
     ),
   );
+  register(createListTemplatesTool(organisationId), readOnly);
+  register(createInstallTemplateTool(organisationId));
 
   // Discovered tools from connected external MCP servers — proxied here,
   // one registration per cached tool, so every existing tool-call path

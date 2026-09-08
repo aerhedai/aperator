@@ -72,10 +72,15 @@ describe("MCP tool server", () => {
     await prisma.customEntityRecord.deleteMany({ where: { organisationId } });
     await prisma.customEntityType.deleteMany({ where: { organisationId } });
     await prisma.integration.deleteMany({ where: { organisationId } });
+    // Only this organisation's own agents — built-in AgentTemplate rows
+    // (organisationId: null) are a shared, global fixture other tests
+    // also rely on and must never be touched here.
+    await prisma.agentTool.deleteMany({ where: { agent: { organisationId } } });
+    await prisma.agent.deleteMany({ where: { organisationId } });
     await prisma.organisation.deleteMany({ where: { id: organisationId } });
   });
 
-  it("lists exactly the thirteen registered tools", async () => {
+  it("lists exactly the fifteen registered tools", async () => {
     const { tools } = await client.listTools();
     const names = tools.map((tool) => tool.name).sort();
 
@@ -88,7 +93,9 @@ describe("MCP tool server", () => {
       "create_folder",
       "create_record",
       "find_record",
+      "install_template",
       "invoke_agent",
+      "list_templates",
       "notify_channel",
       "populate_template",
       "save_file",
@@ -97,6 +104,79 @@ describe("MCP tool server", () => {
       "send_email",
       "update_record",
     ]);
+  });
+
+  it("list_templates returns the seeded built-in templates", async () => {
+    const result = await client.callTool({
+      name: "list_templates",
+      arguments: {},
+    });
+
+    expect(result.isError).toBeFalsy();
+    const templates = (
+      result.structuredContent as { templates: { name: string }[] }
+    ).templates;
+    expect(templates.map((t) => t.name)).toContain("Look up and quote");
+  });
+
+  it("install_template creates a real, draft agent with the template's own tools", async () => {
+    const listed = await client.callTool({
+      name: "list_templates",
+      arguments: {},
+    });
+    const templates = (
+      listed.structuredContent as {
+        templates: { id: string; name: string; suggestedTools: string[] }[];
+      }
+    ).templates;
+    const quoteTemplate = templates.find((t) => t.name === "Look up and quote");
+    if (!quoteTemplate) throw new Error("fixture template not found");
+
+    const result = await client.callTool({
+      name: "install_template",
+      arguments: { templateId: quoteTemplate.id },
+    });
+
+    expect(result.isError).toBeFalsy();
+    const { agentId, agentName } = result.structuredContent as {
+      agentId: string;
+      agentName: string;
+    };
+    expect(agentName).toBe("Look up and quote");
+
+    const agent = await prisma.agent.findUnique({
+      where: { id: agentId },
+      include: { tools: true },
+    });
+    expect(agent).toMatchObject({
+      organisationId,
+      status: "DRAFT",
+      executionMode: "HARNESS",
+      pipelineKey: "steps",
+      // The whole point of pairing this with the default-allow invocation
+      // model — installed by chat or by a human, it's callable immediately.
+      chatInvokable: true,
+    });
+    expect(agent?.tools.map((t) => t.toolName).sort()).toEqual(
+      [...quoteTemplate.suggestedTools].sort(),
+    );
+  });
+
+  it("install_template fails clearly for an unknown template id, creating nothing", async () => {
+    const before = await prisma.agent.count({ where: { organisationId } });
+
+    const result = await client.callTool({
+      name: "install_template",
+      arguments: { templateId: "not-a-real-template-id" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content).toEqual([
+      { type: "text", text: expect.stringContaining("not found") },
+    ]);
+
+    const after = await prisma.agent.count({ where: { organisationId } });
+    expect(after).toBe(before);
   });
 
   it("find_record reaches the built-in Customer type by an exact field match", async () => {
