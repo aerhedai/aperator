@@ -63,8 +63,12 @@ export default async function WorkflowDetailPage({
       )
     : null;
 
+  // MANUAL workflows (installed WorkflowTemplates) never compete for a
+  // trigger slot (see workflow-service.ts's activateWorkflow) — computing
+  // this for one would surface a misleading "activating this will
+  // deactivate X" warning for a swap that's never actually going to happen.
   const otherActiveWorkflow =
-    workflow.status !== "ACTIVE"
+    workflow.status !== "ACTIVE" && workflow.trigger !== "MANUAL"
       ? await workflowService.findActiveWorkflowForTrigger(
           organisation.id,
           workflow.trigger,
@@ -133,9 +137,9 @@ export default async function WorkflowDetailPage({
           {workflow.status === "ACTIVE" ? (
             <>
               <p className="text-sm text-muted-foreground">
-                Live — this is the workflow real{" "}
-                {workflow.trigger.toLowerCase()} traffic for this organisation
-                is routed through.
+                {workflow.trigger === "MANUAL"
+                  ? "Live — this department can be invoked from chat right now."
+                  : `Live — this is the workflow real ${workflow.trigger.toLowerCase()} traffic for this organisation is routed through.`}
               </p>
               <form action={deactivateWorkflowAction.bind(null, workflow.id)}>
                 <Button type="submit" variant="outline">
@@ -146,8 +150,9 @@ export default async function WorkflowDetailPage({
           ) : (
             <>
               <p className="text-sm text-muted-foreground">
-                Draft — not reachable by real {workflow.trigger.toLowerCase()}{" "}
-                traffic yet.
+                {workflow.trigger === "MANUAL"
+                  ? "Draft — not reachable from chat yet."
+                  : `Draft — not reachable by real ${workflow.trigger.toLowerCase()} traffic yet.`}
                 {otherActiveWorkflow &&
                   ` Activating this will deactivate "${otherActiveWorkflow.name}", which currently holds this trigger — only one workflow per trigger can be active at a time.`}
               </p>
