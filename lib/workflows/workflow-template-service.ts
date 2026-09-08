@@ -193,8 +193,23 @@ export async function installWorkflowTemplate(
  * Seeds the built-in workflow templates, idempotently — matched by name
  * among the null-organisation rows, same convergent-update pattern as
  * template-service.ts's seedBuiltInTemplates.
+ *
+ * Also prunes: a built-in row whose name no longer appears in
+ * BUILT_IN_WORKFLOW_TEMPLATES (a department renamed or retired in code) is
+ * deleted rather than left behind as dead catalog clutter. Safe to do
+ * unconditionally — this only ever touches organisationId: null rows,
+ * never anything a business installed for itself, and installing a
+ * template never leaves a live reference back to the WorkflowTemplate row
+ * it came from (the created Workflow/Agent rows are real, independent
+ * data — see installWorkflowTemplate's own doc comment), so retiring a
+ * catalog entry can never orphan something already running.
  */
 export async function seedBuiltInWorkflowTemplates(): Promise<number> {
+  const currentNames = BUILT_IN_WORKFLOW_TEMPLATES.map((t) => t.name);
+  await prisma.workflowTemplate.deleteMany({
+    where: { organisationId: null, name: { notIn: currentNames } },
+  });
+
   let written = 0;
   for (const template of BUILT_IN_WORKFLOW_TEMPLATES) {
     const existing = await prisma.workflowTemplate.findFirst({

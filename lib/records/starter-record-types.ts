@@ -80,9 +80,10 @@ export const STARTER_RECORD_TYPES: EntityTypeInput[] = [
     ],
   },
   {
-    // Brought in by the "Lead Intake" WorkflowTemplate
-    // (lib/workflows/built-in-workflow-templates.ts) — a new enquiry
-    // logged before it's known whether it becomes a real Customer.
+    // Brought in by the "Sales & Enquiries" WorkflowTemplate's Lead
+    // Qualifier handler (lib/workflows/built-in-workflow-templates.ts) — a
+    // new enquiry logged before it's known whether it becomes a real
+    // Customer.
     name: "Lead",
     fields: [
       {
@@ -106,7 +107,8 @@ export const STARTER_RECORD_TYPES: EntityTypeInput[] = [
     ],
   },
   {
-    // Brought in by the "Order & Booking Confirmation" WorkflowTemplate.
+    // Brought in by the "Scheduling & Bookings" WorkflowTemplate's Booking
+    // Coordinator handler.
     name: "Booking",
     fields: [
       {
@@ -132,6 +134,26 @@ export const STARTER_RECORD_TYPES: EntityTypeInput[] = [
         description: "Where this booking currently stands",
         type: "select",
         options: ["Pending", "Confirmed", "Cancelled"],
+        required: false,
+      },
+    ],
+  },
+  {
+    // Brought in by the "Document & Records" WorkflowTemplate's Record
+    // Filer handler — filing an inbound invoice/order/application as a
+    // record needs somewhere real to write it.
+    name: "Invoice",
+    fields: [
+      {
+        name: "number",
+        description: "The invoice or reference number",
+        type: "text",
+        required: true,
+      },
+      {
+        name: "total",
+        description: "The total amount",
+        type: "currency",
         required: false,
       },
     ],

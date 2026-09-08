@@ -8,15 +8,15 @@ import { STARTER_RECORD_TYPES } from "@/lib/records/starter-record-types";
  *
  * Called when a template that needs them is provisioned/installed — e.g.
  * the "Email Handling" workflow needs Product/Customer because its Quote
- * agent looks records up by type name, and "Lead Intake"
- * (built-in-workflow-templates.ts) needs Lead. This is a template bringing
- * its Record Types with it (CLAUDE.md §6), not the platform deciding every
- * business sells products.
+ * agent looks records up by type name, and "Sales & Enquiries"
+ * (built-in-workflow-templates.ts) needs Lead for its Lead Qualifier
+ * handler. This is a template bringing its Record Types with it (CLAUDE.md
+ * §6), not the platform deciding every business sells products.
  *
  * `names` restricts which of STARTER_RECORD_TYPES to seed — omitted means
  * every one of them, the original behaviour every existing caller still
  * gets unchanged. A workflow template only ever asks for the specific
- * names its own handlers need, so installing e.g. "Lead Intake" doesn't
+ * names its own handlers need, so installing "Sales & Enquiries" doesn't
  * also hand a business an unrelated Booking type it never asked for.
  *
  * Skips any name the business already has, rather than overwriting: a

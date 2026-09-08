@@ -77,6 +77,8 @@ describe("install_workflow_template tool", () => {
     await prisma.workflow.deleteMany({ where: { organisationId } });
     await prisma.agentTool.deleteMany({ where: { agent: { organisationId } } });
     await prisma.agent.deleteMany({ where: { organisationId } });
+    await prisma.customEntityRecord.deleteMany({ where: { organisationId } });
+    await prisma.customEntityType.deleteMany({ where: { organisationId } });
     await prisma.organisation.deleteMany({ where: { id: organisationId } });
   });
 
@@ -94,7 +96,7 @@ describe("install_workflow_template tool", () => {
       }
     ).templates;
     expect(
-      templates.find((t) => t.name === "Meeting Scheduling"),
+      templates.find((t) => t.name === "Scheduling & Bookings"),
     ).toMatchObject({ kind: "workflow" });
     expect(templates.find((t) => t.name === "Look up and quote")).toMatchObject(
       { kind: "agent" },
@@ -128,7 +130,7 @@ describe("install_workflow_template tool", () => {
       listed.structuredContent as { templates: { id: string; name: string }[] }
     ).templates;
     const schedulingTemplate = templates.find(
-      (t) => t.name === "Meeting Scheduling",
+      (t) => t.name === "Scheduling & Bookings",
     );
     if (!schedulingTemplate) throw new Error("fixture template not found");
 
