@@ -14,6 +14,7 @@ import { createCreateRecordTool } from "@/lib/mcp/tools/create-record";
 import { createFindRecordTool } from "@/lib/mcp/tools/find-record";
 import { createInstallTemplateTool } from "@/lib/mcp/tools/install-template";
 import { createInvokeAgentTool } from "@/lib/mcp/tools/invoke-agent";
+import { createInvokeWorkflowTool } from "@/lib/mcp/tools/invoke-workflow";
 import { createListTemplatesTool } from "@/lib/mcp/tools/list-templates";
 import { createMcpProxyTool } from "@/lib/mcp/tools/mcp-proxy-tool";
 import { createNotifyChannelTool } from "@/lib/mcp/tools/notify-channel";
@@ -23,6 +24,7 @@ import { createSearchKnowledgeTool } from "@/lib/mcp/tools/search-knowledge";
 import { createSearchRecordsTool } from "@/lib/mcp/tools/search-records";
 import { createSendEmailTool } from "@/lib/mcp/tools/send-email";
 import { createUpdateRecordTool } from "@/lib/mcp/tools/update-record";
+import * as workflowService from "@/lib/workflows/workflow-service";
 
 // Marks a tool as having no side effects. Read-only tools are never
 // approval-gated (lib/policies/policy-engine.ts); the tools that mutate
@@ -183,6 +185,23 @@ export async function createMcpServer(
       invocationDepth,
       aiProvider,
       invokableAgents,
+    ),
+  );
+  // Every ACTIVE workflow is invokable — a workflow has no per-agent grant
+  // to check (unlike invoke_agent's chatInvokable), since asking a
+  // department to handle something is gated only by whether that
+  // department is actually running, not by an explicit allow-list.
+  const invokableWorkflows = (
+    await workflowService.listWorkflows(organisationId)
+  )
+    .filter((w) => w.status === "ACTIVE")
+    .map((w) => ({ id: w.id, name: w.name, description: w.description }));
+  register(
+    createInvokeWorkflowTool(
+      organisationId,
+      invocationDepth,
+      aiProvider,
+      invokableWorkflows,
     ),
   );
   register(createListTemplatesTool(organisationId), readOnly);
