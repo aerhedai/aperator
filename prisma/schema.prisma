@@ -310,18 +310,22 @@ model Agent {
   // application code (e.g. entity-status-signal-pipeline.ts), not the
   // database. Empty object means "not configured."
   pipelineConfig       Json               @default("{}")
+  // Whether another agent (in practice, today, only the org's one
+  // CHAT-mode agent) may call this one through invoke_agent. Defaults to
+  // true: the platform's own orchestration model is "anything active in
+  // the organisation is reachable unless you specifically hide it," not
+  // an allow-list a business has to populate one agent at a time before
+  // chat can do anything (CLAUDE.md's own primitives-first spirit applied
+  // to orchestration, not just tools). Replaces the old
+  // AgentInvocationGrant join table, which was the inverse default and
+  // meant a freshly-created chat agent could invoke nothing at all.
+  chatInvokable        Boolean            @default(true)
 
   organisation        Organisation    @relation(fields: [organisationId], references: [id])
   actionIntegration   Integration?    @relation(fields: [actionIntegrationId], references: [id])
   runs                AgentRun[]
   tools               AgentTool[]
   workflowMemberships WorkflowAgent[]
-  // Which other agents this agent (typically CHAT-mode) may call via the
-  // invoke_agent tool — this side is the caller.
-  invokableAgents     AgentInvocationGrant[] @relation("InvocationCaller")
-  // Which other agents may invoke *this* one — kept for the cascade; not
-  // read directly anywhere today.
-  invokableBy         AgentInvocationGrant[] @relation("InvocationTarget")
 
   @@index([organisationId])
   @@index([actionIntegrationId])
@@ -343,28 +347,6 @@ model AgentTool {
 
   @@unique([agentId, toolName])
   @@index([agentId])
-}
-
-// Explicit allow-list of which agents a (typically CHAT-mode) agent may
-// call through the generic invoke_agent tool — the same "grant, don't
-// imply" shape as AgentTool, kept as its own table rather than an overload
-// of AgentTool because it points at another Agent, not a fixed tool name.
-// Having invoke_agent itself granted isn't enough on its own; the caller
-// also needs a row here naming exactly which agent it may address.
-model AgentInvocationGrant {
-  id                  String   @id @default(cuid())
-  orchestratorAgentId String
-  targetAgentId       String
-  createdAt           DateTime @default(now())
-
-  // Cascade both ways: a grant row has no independent value once either
-  // side of it is gone — same reasoning as AgentTool.agent.
-  orchestratorAgent Agent @relation("InvocationCaller", fields: [orchestratorAgentId], references: [id], onDelete: Cascade)
-  targetAgent       Agent @relation("InvocationTarget", fields: [targetAgentId], references: [id], onDelete: Cascade)
-
-  @@unique([orchestratorAgentId, targetAgentId])
-  @@index([orchestratorAgentId])
-  @@index([targetAgentId])
 }
 
 // A named, reusable pipeline: one classifier agent that decides which

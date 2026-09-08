@@ -9,15 +9,18 @@ export default async function AssistantSettingsPage() {
   const organisation = await getCurrentOrganisation();
   const agent = await chatAgentService.getOrCreateChatAgent(organisation.id);
 
-  const [toolNames, invokableAgentIds, allAgents] = await Promise.all([
+  const [toolNames, allAgents] = await Promise.all([
     chatAgentService.listChatAgentToolNames(agent.id),
-    chatAgentService.listInvokableAgentIds(agent.id),
     agentService.listAgents(organisation.id),
   ]);
 
   // Can't invoke itself, and there's nothing else to invoke it wouldn't
-  // already see here — every other agent in the org is a candidate.
+  // already see here — every other agent in the org is a candidate,
+  // checked by default (Agent.chatInvokable defaults to true).
   const invokableCandidates = allAgents.filter((a) => a.id !== agent.id);
+  const invokableAgentIds = invokableCandidates
+    .filter((a) => a.chatInvokable)
+    .map((a) => a.id);
 
   return (
     <div className="flex max-w-2xl flex-col gap-6">

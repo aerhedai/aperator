@@ -11,8 +11,9 @@ import { createMcpServer } from "@/lib/mcp/server";
  * route would use over HTTP, just without the network. actionIntegrationId
  * is passed straight through to createMcpServer — see its doc comment.
  * callerAgentId identifies which agent this client's calls are made on
- * behalf of — invoke_agent needs it to check AgentInvocationGrant; every
- * other tool ignores it. invocationDepth is forwarded to invoke_agent's own
+ * behalf of — invoke_agent needs it to know which other agents are
+ * invokable and to exclude itself from that list; every other tool ignores
+ * it. invocationDepth is forwarded to invoke_agent's own
  * recursion guard — see its MAX_INVOCATION_DEPTH. provider is forwarded to
  * invoke_agent so a delegated run uses the same already-resolved provider
  * instance as its caller, rather than re-resolving one — keeps provider

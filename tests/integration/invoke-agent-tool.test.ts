@@ -28,7 +28,7 @@ function scriptedProvider(responses: AIResponse[]): AIProvider {
 describe("invoke_agent tool", () => {
   const organisationId = "test-org-invoke-agent";
   let orchestrator: Agent;
-  let ungrantedTarget: Agent;
+  let excludedTarget: Agent;
   let grantedTarget: Agent;
   let sendEmailTarget: Agent;
 
@@ -55,31 +55,31 @@ describe("invoke_agent tool", () => {
       data: { agentId: orchestrator.id, toolName: "invoke_agent" },
     });
 
-    ungrantedTarget = await prisma.agent.create({
+    // Explicitly excluded — Agent.chatInvokable defaults to true, so this
+    // is the one target that has to opt *out* to prove the deny path still
+    // works under the new default-allow model.
+    excludedTarget = await prisma.agent.create({
       data: {
         organisationId,
-        name: "Ungranted Target",
-        description: "Never explicitly granted to the orchestrator.",
+        name: "Excluded Target",
+        description: "Explicitly excluded from invocation.",
         instructions: "n/a",
         model: "test-model",
         status: "ACTIVE",
+        chatInvokable: false,
       },
     });
 
+    // No explicit grant needed any more — chatInvokable defaults to true,
+    // so this agent is invokable the moment it exists.
     grantedTarget = await prisma.agent.create({
       data: {
         organisationId,
         name: "Granted Target",
-        description: "Explicitly grantable target.",
+        description: "Invokable by default.",
         instructions: "Answer briefly.",
         model: "test-model",
         status: "ACTIVE",
-      },
-    });
-    await prisma.agentInvocationGrant.create({
-      data: {
-        orchestratorAgentId: orchestrator.id,
-        targetAgentId: grantedTarget.id,
       },
     });
 
@@ -96,12 +96,6 @@ describe("invoke_agent tool", () => {
     await prisma.agentTool.create({
       data: { agentId: sendEmailTarget.id, toolName: "send_email" },
     });
-    await prisma.agentInvocationGrant.create({
-      data: {
-        orchestratorAgentId: orchestrator.id,
-        targetAgentId: sendEmailTarget.id,
-      },
-    });
   });
 
   afterAll(async () => {
@@ -114,16 +108,13 @@ describe("invoke_agent tool", () => {
     await prisma.toolCall.deleteMany({ where: { agentRunId: { in: runIds } } });
     await prisma.runStep.deleteMany({ where: { agentRunId: { in: runIds } } });
     await prisma.agentRun.deleteMany({ where: { organisationId } });
-    await prisma.agentInvocationGrant.deleteMany({
-      where: { orchestratorAgentId: orchestrator.id },
-    });
     await prisma.agentTool.deleteMany({ where: { agent: { organisationId } } });
     await prisma.agent.deleteMany({ where: { organisationId } });
     await prisma.organisation.deleteMany({ where: { id: organisationId } });
     await prisma.$disconnect();
   });
 
-  it("denies invoking an agent with no AgentInvocationGrant, without ever running it", async () => {
+  it("denies invoking an agent explicitly excluded from invocation, without ever running it", async () => {
     const provider = scriptedProvider([
       {
         content: "",
@@ -131,7 +122,7 @@ describe("invoke_agent tool", () => {
           {
             id: "call_0",
             name: "invoke_agent",
-            arguments: { agentId: ungrantedTarget.id, input: "Do something" },
+            arguments: { agentId: excludedTarget.id, input: "Do something" },
           },
         ],
       },
@@ -140,7 +131,7 @@ describe("invoke_agent tool", () => {
 
     const result = await runAgent(
       orchestrator,
-      "Ask the ungranted agent",
+      "Ask the excluded agent",
       provider,
     );
 
@@ -154,15 +145,15 @@ describe("invoke_agent tool", () => {
       toolName: "invoke_agent",
       status: "FAILED",
     });
-    expect(toolCalls[0]?.error).toMatch(/not been granted permission/i);
+    expect(toolCalls[0]?.error).toMatch(/may currently invoke/i);
 
     const targetRuns = await prisma.agentRun.count({
-      where: { agentId: ungrantedTarget.id },
+      where: { agentId: excludedTarget.id },
     });
     expect(targetRuns).toBe(0);
   });
 
-  it("invokes a granted agent and surfaces its final reply", async () => {
+  it("invokes an agent (invokable by default) and surfaces its final reply", async () => {
     const provider = scriptedProvider([
       {
         content: "",

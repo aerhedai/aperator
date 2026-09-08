@@ -3,6 +3,7 @@ import type { ToolCallback } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 
 import type { AIProvider } from "@/lib/ai/provider";
+import * as agentRepository from "@/lib/agents/agent-repository";
 import * as integrationRepository from "@/lib/integrations/integration-repository";
 import * as integrationService from "@/lib/integrations/integration-service";
 import type { DiscoveredMcpTool } from "@/lib/integrations/mcp/tool-naming";
@@ -66,8 +67,9 @@ interface ToolDefinition<
  *
  * callerAgentId identifies which agent this server instance's calls are
  * made on behalf of — invoke_agent is the one tool that needs to know who
- * is calling, to check its AgentInvocationGrant allow-list. Every other
- * tool ignores it. invocationDepth is forwarded to invoke_agent's own
+ * is calling, both to exclude it from its own invokable list and to check
+ * invocation depth. Every other tool ignores it. invocationDepth is
+ * forwarded to invoke_agent's own
  * recursion guard. aiProvider, if supplied, is the already-resolved
  * AIProvider the calling run is itself using — invoke_agent reuses it
  * rather than resolving its own, and falls back to resolving one itself
@@ -156,13 +158,29 @@ export async function createMcpServer(
   register(createSaveFileTool(organisationId));
   register(createPopulateTemplateTool(organisationId));
 
-  // Orchestration
+  // Orchestration — every active agent in the org is invokable by default
+  // (Agent.chatInvokable), so the set the model is actually told about is
+  // computed fresh here rather than read from a per-caller grant table.
+  // CHAT-mode agents are excluded (nothing invokes the one chat agent an
+  // org has), as is the caller itself.
+  const invokableAgents = callerAgentId
+    ? (await agentRepository.findAgentsByOrganisation(organisationId))
+        .filter(
+          (a) =>
+            a.id !== callerAgentId &&
+            a.status === "ACTIVE" &&
+            a.executionMode !== "CHAT" &&
+            a.chatInvokable,
+        )
+        .map((a) => ({ id: a.id, name: a.name, description: a.description }))
+    : [];
   register(
     createInvokeAgentTool(
       organisationId,
       callerAgentId,
       invocationDepth,
       aiProvider,
+      invokableAgents,
     ),
   );
 
