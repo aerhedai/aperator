@@ -79,4 +79,61 @@ export const STARTER_RECORD_TYPES: EntityTypeInput[] = [
       },
     ],
   },
+  {
+    // Brought in by the "Lead Intake" WorkflowTemplate
+    // (lib/workflows/built-in-workflow-templates.ts) — a new enquiry
+    // logged before it's known whether it becomes a real Customer.
+    name: "Lead",
+    fields: [
+      {
+        name: "name",
+        description: "The lead's full name",
+        type: "text",
+        required: true,
+      },
+      {
+        name: "email",
+        description: "The lead's contact email",
+        type: "text",
+        required: true,
+      },
+      {
+        name: "interest",
+        description: "What they're enquiring about",
+        type: "text",
+        required: false,
+      },
+    ],
+  },
+  {
+    // Brought in by the "Order & Booking Confirmation" WorkflowTemplate.
+    name: "Booking",
+    fields: [
+      {
+        name: "reference",
+        description: "The booking or order reference",
+        type: "text",
+        required: true,
+      },
+      {
+        name: "customerName",
+        description: "Who the booking is for",
+        type: "text",
+        required: true,
+      },
+      {
+        name: "date",
+        description: "The date the booking is for",
+        type: "date",
+        required: false,
+      },
+      {
+        name: "status",
+        description: "Where this booking currently stands",
+        type: "select",
+        options: ["Pending", "Confirmed", "Cancelled"],
+        required: false,
+      },
+    ],
+  },
 ];

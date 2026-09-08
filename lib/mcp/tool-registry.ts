@@ -124,6 +124,13 @@ export const TOOL_REGISTRY = [
     description:
       "Install a pre-built agent template, creating a real (draft) agent from it.",
   },
+  {
+    name: "install_workflow_template",
+    group: "Orchestration",
+    label: "Install workflow template",
+    description:
+      "Install a pre-built department (a classifier plus its handlers), creating a real, active workflow from it.",
+  },
 ] as const;
 
 export type ToolName = (typeof TOOL_REGISTRY)[number]["name"];

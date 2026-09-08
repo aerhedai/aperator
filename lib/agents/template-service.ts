@@ -1,8 +1,6 @@
-import * as agentService from "@/lib/agents/agent-service";
+import { installAgentSpec } from "@/lib/agents/agent-spec-install";
 import { BUILT_IN_TEMPLATES } from "@/lib/agents/built-in-templates";
-import { DEFAULT_AGENT_MODEL } from "@/lib/agents/default-agent-config";
-import { validatePipelineConfig } from "@/lib/agents/pipeline-config-form";
-import { agentInputSchema } from "@/lib/agents/schemas";
+import type { CategoryType } from "@/lib/agents/schemas";
 import { prisma } from "@/lib/db/prisma";
 import { stepProgrammeSchema } from "@/lib/harness/steps/schema";
 
@@ -18,6 +16,8 @@ export interface TemplateSummary {
   id: string;
   name: string;
   description: string;
+  categoryType: string;
+  instructions: string;
   steps: unknown;
   suggestedTools: string[];
   builtIn: boolean;
@@ -54,6 +54,8 @@ export async function listTemplates(
     id: row.id,
     name: row.name,
     description: row.description,
+    categoryType: row.categoryType,
+    instructions: row.instructions,
     steps: row.steps,
     suggestedTools: row.suggestedTools,
     builtIn: row.organisationId === null,
@@ -76,6 +78,8 @@ export async function getTemplate(
     id: row.id,
     name: row.name,
     description: row.description,
+    categoryType: row.categoryType,
+    instructions: row.instructions,
     steps: row.steps,
     suggestedTools: row.suggestedTools,
     builtIn: row.organisationId === null,
@@ -94,16 +98,14 @@ export type InstallTemplateResult =
  * through identical validation, not two versions of "install" that could
  * quietly drift apart.
  *
- * Runs the template through the exact same categoryType: "steps" shape
- * and validation every hand-built agent goes through
- * (createAgentAction) — a template that wouldn't pass here couldn't have
- * been saved as one in the first place (saveTemplate already checks
- * stepProgrammeSchema), so this should only ever fail for a suggested
- * tool that's since stopped existing (e.g. a disconnected MCP server).
- * The created agent is DRAFT, same as any hand-built one — installing a
- * template, whether by a human or by chat on a business's behalf, is
- * still a starting point that gets reviewed before it does anything, not
- * a live action in itself.
+ * Delegates to installAgentSpec (lib/agents/agent-spec-install.ts) — the
+ * same validation and creation path a hand-built agent goes through, and
+ * the same one installWorkflowTemplate uses for each handler/classifier it
+ * installs, so a lone template and a workflow template's members are never
+ * two different notions of "install." The created agent is DRAFT, same as
+ * any hand-built one — installing a template, whether by a human or by
+ * chat on a business's behalf, is still a starting point that gets
+ * reviewed before it does anything, not a live action in itself.
  */
 export async function installTemplate(
   organisationId: string,
@@ -114,40 +116,14 @@ export async function installTemplate(
     return { ok: false, error: "Template not found." };
   }
 
-  const parsed = agentInputSchema.safeParse({
+  return installAgentSpec(organisationId, {
     name: template.name,
     description: template.description,
-    instructions: `Follow the "${template.name}" process: ${template.description}`,
-    model: DEFAULT_AGENT_MODEL,
-    categoryType: "steps",
-    toolNames: template.suggestedTools,
-    pipelineConfig: template.steps,
+    instructions: template.instructions,
+    categoryType: template.categoryType as CategoryType,
+    suggestedTools: template.suggestedTools,
+    steps: template.steps,
   });
-  if (!parsed.success) {
-    return {
-      ok: false,
-      error: parsed.error.issues.map((i) => i.message).join("; "),
-    };
-  }
-
-  const validated = validatePipelineConfig("steps", parsed.data.pipelineConfig);
-  if ("error" in validated) {
-    return { ok: false, error: validated.error };
-  }
-
-  try {
-    const agent = await agentService.createAgent(organisationId, {
-      ...parsed.data,
-      pipelineConfig: validated.config,
-    });
-    return { ok: true, agentId: agent.id, agentName: agent.name };
-  } catch (error) {
-    const message =
-      error instanceof agentService.ToolGrantError
-        ? error.message
-        : "Couldn't install this template.";
-    return { ok: false, error: message };
-  }
 }
 
 export async function saveTemplate(
@@ -205,6 +181,8 @@ export async function seedBuiltInTemplates(): Promise<number> {
     const data = {
       name: template.name,
       description: template.description,
+      categoryType: template.categoryType ?? "steps",
+      instructions: template.instructions ?? "",
       steps: template.steps as object,
       suggestedTools: template.suggestedTools,
     };

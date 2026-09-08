@@ -22,6 +22,10 @@ export interface BuiltInTemplate {
   key: string;
   name: string;
   description: string;
+  // Both omitted means "steps" + the generic install-time wrapper — every
+  // template below is exactly that, unchanged from before these existed.
+  categoryType?: string;
+  instructions?: string;
   steps: StepProgramme;
   suggestedTools: string[];
 }

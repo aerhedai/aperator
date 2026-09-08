@@ -13,6 +13,7 @@ import { createCreateFolderTool } from "@/lib/mcp/tools/create-folder";
 import { createCreateRecordTool } from "@/lib/mcp/tools/create-record";
 import { createFindRecordTool } from "@/lib/mcp/tools/find-record";
 import { createInstallTemplateTool } from "@/lib/mcp/tools/install-template";
+import { createInstallWorkflowTemplateTool } from "@/lib/mcp/tools/install-workflow-template";
 import { createInvokeAgentTool } from "@/lib/mcp/tools/invoke-agent";
 import { createInvokeWorkflowTool } from "@/lib/mcp/tools/invoke-workflow";
 import { createListTemplatesTool } from "@/lib/mcp/tools/list-templates";
@@ -206,6 +207,7 @@ export async function createMcpServer(
   );
   register(createListTemplatesTool(organisationId), readOnly);
   register(createInstallTemplateTool(organisationId));
+  register(createInstallWorkflowTemplateTool(organisationId));
 
   // Discovered tools from connected external MCP servers — proxied here,
   // one registration per cached tool, so every existing tool-call path

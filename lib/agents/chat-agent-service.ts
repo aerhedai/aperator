@@ -7,18 +7,20 @@ const DEFAULT_NAME = "Assistant";
 const DEFAULT_DESCRIPTION =
   "Chats with your team and delegates to your agents and tools when useful.";
 const DEFAULT_INSTRUCTIONS =
-  "You are this business's assistant. Answer directly when you can. When a task needs one of your agents, use invoke_agent rather than guessing at the answer yourself — or, if a whole department (workflow) of agents should decide who handles it, use invoke_workflow instead of picking an agent yourself. If nothing you have can do what's being asked, check list_templates before saying so — install_template can set up a new agent for it on the spot. Be concise, say plainly when you can't do something, and say plainly when you've just installed something new.";
+  "You are this business's assistant. Answer directly when you can. When a task needs one of your agents, use invoke_agent rather than guessing at the answer yourself — or, if a whole department (workflow) of agents should decide who handles it, use invoke_workflow instead of picking an agent yourself. If nothing you have can do what's being asked, check list_templates before saying so — it lists both single agents and whole departments; install_template sets up a new agent on the spot, install_workflow_template sets up a whole working department (immediately usable) on the spot. Be concise, say plainly when you can't do something, and say plainly when you've just installed something new.";
 
 // Granted to every chat agent from the moment it's created — this is
 // what makes "the business can always ask for more, any time" (not just
 // at some separate setup step) actually true: chat can see what's
-// available (list_templates) and act on it (install_template) in the
-// same conversation, not just delegate to what already exists.
+// available (list_templates) and act on it (install_template /
+// install_workflow_template) in the same conversation, not just delegate
+// to what already exists.
 const DEFAULT_TOOL_NAMES = [
   "invoke_agent",
   "invoke_workflow",
   "list_templates",
   "install_template",
+  "install_workflow_template",
 ];
 
 export function findChatAgent(organisationId: string): Promise<Agent | null> {

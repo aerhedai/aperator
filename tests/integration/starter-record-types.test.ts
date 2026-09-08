@@ -45,9 +45,16 @@ describe("starter record types", () => {
     // Organisations that existed at the collapse got these types from the
     // migration's hardcoded JSON; ones created since get them from the code
     // above. If the two drift, two businesses end up with types of the same
-    // name and different shapes, and nothing else would catch it.
+    // name and different shapes, and nothing else would catch it. Scoped to
+    // just Product/Customer — the only two types that existed at the
+    // collapse; anything added to STARTER_RECORD_TYPES since (Lead,
+    // Booking, ...) was never part of that migration and has nothing to
+    // match here.
     const sql = readFileSync(MIGRATION, "utf8");
-    for (const definition of STARTER_RECORD_TYPES) {
+    const collapseTypes = STARTER_RECORD_TYPES.filter((d) =>
+      ["Product", "Customer"].includes(d.name),
+    );
+    for (const definition of collapseTypes) {
       const match = sql.match(
         new RegExp(`'${definition.name}', '(\\[.*?\\])'::jsonb`, "s"),
       );
@@ -62,14 +69,20 @@ describe("starter record types", () => {
   });
 
   it("seeds both types, and adding them twice doesn't duplicate", async () => {
-    const first = await seedStarterRecordTypes(organisationId);
+    const first = await seedStarterRecordTypes(organisationId, [
+      "Product",
+      "Customer",
+    ]);
     expect(first.sort()).toEqual(["Customer", "Product"]);
 
-    const second = await seedStarterRecordTypes(organisationId);
+    const second = await seedStarterRecordTypes(organisationId, [
+      "Product",
+      "Customer",
+    ]);
     expect(second).toEqual([]);
 
     const count = await prisma.customEntityType.count({
-      where: { organisationId },
+      where: { organisationId, name: { in: ["Product", "Customer"] } },
     });
     expect(count).toBe(2);
   });
