@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { Mic, Plus } from "lucide-react";
+import { ArrowUp, Mic, Plus } from "lucide-react";
 
 import {
   getChatRunStateAction,
@@ -128,9 +128,11 @@ export function ChatThread({
             <Button
               onClick={() => void handleSend()}
               disabled={active || !draft.trim() || sending}
-              className="rounded-full px-4"
+              className="rounded-full p-2.5"
+              aria-label="Submit message"
+              title="Submit message"
             >
-              Send
+              <ArrowUp className="size-4" />
             </Button>
           </div>
         </div>

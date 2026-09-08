@@ -95,8 +95,8 @@ type AgentFormValues = Pick<
 // CHAT is excluded for the identical reason LOOP is: pipelineKey is also
 // null for a CHAT agent, and this form's schema (agentInputSchema) has no
 // "chat" categoryType at all — saving one here would silently rewrite it to
-// HARNESS/"steps" too. CHAT-mode agents are edited from /chat/settings
-// instead, which is the only UI that creates one.
+// HARNESS/"steps" too. CHAT-mode agents are edited from
+// /settings/assistant instead, which is the only UI that creates one.
 function isLegacyPipeline(agent?: AgentFormValues): boolean {
   if (!agent) return false;
   if (agent.executionMode === "LOOP" || agent.executionMode === "CHAT") {
