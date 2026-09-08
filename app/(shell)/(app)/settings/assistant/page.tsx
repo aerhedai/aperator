@@ -5,7 +5,7 @@ import { getCurrentOrganisation } from "@/lib/organisations/current-organisation
 
 export const dynamic = "force-dynamic";
 
-export default async function ChatSettingsPage() {
+export default async function AssistantSettingsPage() {
   const organisation = await getCurrentOrganisation();
   const agent = await chatAgentService.getOrCreateChatAgent(organisation.id);
 
@@ -20,9 +20,9 @@ export default async function ChatSettingsPage() {
   const invokableCandidates = allAgents.filter((a) => a.id !== agent.id);
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
+    <div className="flex max-w-2xl flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Assistant settings</h1>
+        <h2 className="text-xl font-semibold">Assistant</h2>
         <p className="text-sm text-muted-foreground">
           What your assistant is called, what it should do, and which of your
           agents and tools it may use.

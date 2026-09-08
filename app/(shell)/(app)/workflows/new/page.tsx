@@ -10,7 +10,7 @@ export default async function NewWorkflowPage() {
   ]);
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
+    <div className="mx-auto flex max-w-2xl flex-col gap-6">
       <h1 className="text-xl font-semibold">Create workflow</h1>
       <p className="text-sm text-muted-foreground">
         A custom workflow for a process this business needs that isn&rsquo;t one

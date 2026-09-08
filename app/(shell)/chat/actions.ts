@@ -139,5 +139,5 @@ export async function updateChatSettingsAction(
     invokableAgentIds,
   });
 
-  redirect("/chat/settings");
+  redirect("/settings/assistant");
 }
