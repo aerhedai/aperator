@@ -13,7 +13,7 @@ export default async function AgentsPage() {
   const agents = await agentService.listAgents(organisation.id);
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Agents</h1>
         <Button nativeButton={false} render={<Link href="/agents/new" />}>

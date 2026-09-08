@@ -11,7 +11,7 @@ export default async function ApprovalsPage() {
   const approvals = await approvalService.listPendingApprovals(organisation.id);
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+    <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <h1 className="text-xl font-semibold">Approvals</h1>
 
       {approvals.length === 0 ? (
