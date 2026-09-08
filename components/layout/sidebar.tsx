@@ -1,6 +1,5 @@
 "use client";
 
-import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 import {
   Activity,
   Bot,
@@ -13,7 +12,6 @@ import {
   PanelLeftOpen,
   Plus,
   Search,
-  Settings as SettingsIcon,
   Table2,
   Workflow,
 } from "lucide-react";
@@ -21,6 +19,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 
+import { AccountMenu } from "@/components/layout/account-menu";
 import type { RunStatus } from "@/lib/generated/prisma/client";
 import { cn } from "@/lib/utils";
 
@@ -101,7 +100,7 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "flex h-full shrink-0 flex-col gap-4 border-r border-border p-3",
+        "flex h-full shrink-0 flex-col gap-4 overflow-hidden border-r border-border p-3 transition-[width] duration-200 ease-in-out",
         collapsed ? "w-16 items-center" : "w-60",
       )}
     >
@@ -111,7 +110,7 @@ export function Sidebar({
         <img src="/icon.png" alt="Aperator" className="size-7 shrink-0" />
         {!collapsed && (
           <>
-            <span className="text-sm font-semibold tracking-tight">
+            <span className="text-sm font-semibold whitespace-nowrap">
               Aperator
             </span>
             <div className="ml-auto flex items-center gap-0.5">
@@ -146,35 +145,58 @@ export function Sidebar({
         )}
       </div>
 
-      {!collapsed && (
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-medium text-muted-foreground">
-              Spaces
-            </span>
+      <div
+        className={cn(
+          "grid w-full shrink-0 transition-[grid-template-rows] duration-200 ease-in-out",
+          collapsed ? "grid-rows-[0fr]" : "grid-rows-[1fr]",
+        )}
+      >
+        <div className="overflow-hidden">
+          {/* Fixed width, independent of the animating parent: without it,
+              this content has no icon-only form to shrink to, so as the
+              sidebar narrows it would visibly reflow/wrap word-by-word
+              instead of just sliding out of view. A quick opacity fade
+              (shorter than the width/height transitions) hides it well
+              before that clipping becomes noticeable. */}
+          <div
+            className={cn(
+              "flex w-52 flex-col gap-1.5 transition-opacity duration-100 ease-in-out",
+              collapsed ? "opacity-0" : "opacity-100",
+            )}
+          >
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs font-medium text-muted-foreground">
+                Spaces
+              </span>
+              <button
+                type="button"
+                title="Add a space — coming soon"
+                aria-label="Add a space"
+                className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <Plus className="size-3.5" />
+              </button>
+            </div>
             <button
               type="button"
-              title="Add a space — coming soon"
-              aria-label="Add a space"
-              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              title="Coming soon"
+              className="flex items-center gap-2 rounded-md border border-dashed border-border px-2.5 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted"
             >
-              <Plus className="size-3.5" />
+              <Plus className="size-3.5 shrink-0" />
+              Add a new workspace
             </button>
           </div>
-          <button
-            type="button"
-            title="Coming soon"
-            className="flex items-center gap-2 rounded-md border border-dashed border-border px-2.5 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted"
-          >
-            <Plus className="size-3.5 shrink-0" />
-            Add a new workspace
-          </button>
         </div>
-      )}
+      </div>
 
-      <div className="h-px shrink-0 bg-border" />
+      <div className="h-px w-full shrink-0 bg-border" />
 
-      <nav className="flex flex-col gap-0.5">
+      <nav
+        className={cn(
+          "flex w-full flex-col gap-0.5",
+          collapsed && "items-center",
+        )}
+      >
         {LINKS.map((link) => {
           const active = pathname.startsWith(link.href);
           const Icon = link.icon;
@@ -188,17 +210,31 @@ export function Sidebar({
               href={link.href}
               title={collapsed ? link.label : undefined}
               className={cn(
-                "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
-                collapsed && "justify-center px-0",
+                "flex items-center gap-2.5 rounded-md py-1.5 text-sm font-medium transition-colors",
+                collapsed ? "size-8 justify-center px-0" : "px-2.5",
                 active
                   ? "bg-app-accent-soft text-app-accent-soft-foreground"
                   : "text-muted-foreground hover:bg-secondary hover:text-foreground",
               )}
             >
               <Icon className="size-4 shrink-0" />
-              {!collapsed && link.label}
-              {!collapsed && badge !== null && (
-                <span className="ml-auto rounded-full bg-warning/20 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-warning">
+              <span
+                className={cn(
+                  "overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-200 ease-in-out",
+                  collapsed ? "max-w-0 opacity-0" : "max-w-40 opacity-100",
+                )}
+              >
+                {link.label}
+              </span>
+              {badge !== null && (
+                <span
+                  className={cn(
+                    "ml-auto overflow-hidden rounded-full bg-warning/20 text-xs font-semibold tabular-nums text-warning transition-[max-width,opacity] duration-200 ease-in-out",
+                    collapsed
+                      ? "max-w-0 opacity-0"
+                      : "max-w-8 px-1.5 py-0.5 opacity-100",
+                  )}
+                >
                   {badge}
                 </span>
               )}
@@ -207,11 +243,25 @@ export function Sidebar({
         })}
       </nav>
 
-      {!collapsed && (
-        <>
-          <div className="h-px shrink-0 bg-border" />
+      <div className="h-px w-full shrink-0 bg-border" />
 
-          <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+      <div
+        className={cn(
+          "grid w-full min-h-0 flex-1 transition-[grid-template-rows] duration-200 ease-in-out",
+          collapsed ? "grid-rows-[0fr]" : "grid-rows-[1fr]",
+        )}
+      >
+        <div className="flex min-h-0 flex-col overflow-hidden">
+          {/* Same fixed-width + fast-fade treatment as the Spaces block
+              above: a chat thread's title has no icon-only form, so it
+              must disappear via opacity rather than reflow as the
+              sidebar narrows. */}
+          <div
+            className={cn(
+              "flex min-h-0 w-52 flex-1 flex-col gap-1.5 transition-opacity duration-100 ease-in-out",
+              collapsed ? "opacity-0" : "opacity-100",
+            )}
+          >
             <button
               type="button"
               onClick={() => setChatsExpanded((expanded) => !expanded)}
@@ -253,35 +303,16 @@ export function Sidebar({
               </div>
             )}
           </div>
-        </>
-      )}
-
-      {collapsed && <div className="flex-1" />}
+        </div>
+      </div>
 
       <div
         className={cn(
-          "flex shrink-0 items-center gap-1.5 border-t border-border pt-2",
-          collapsed && "flex-col",
+          "w-full shrink-0 border-t border-border pt-2",
+          collapsed && "flex justify-center",
         )}
       >
-        {!collapsed && (
-          <OrganizationSwitcher afterSelectOrganizationUrl="/dashboard" />
-        )}
-        <UserButton />
-        {!collapsed && (
-          <Link
-            href="/settings"
-            aria-label="Settings"
-            title="Settings"
-            className={cn(
-              "ml-auto rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-              pathname.startsWith("/settings") &&
-                "bg-app-accent-soft text-app-accent-soft-foreground",
-            )}
-          >
-            <SettingsIcon className="size-4" />
-          </Link>
-        )}
+        <AccountMenu collapsed={collapsed} />
       </div>
     </aside>
   );
