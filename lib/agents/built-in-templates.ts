@@ -207,4 +207,25 @@ export const BUILT_IN_TEMPLATES: BuiltInTemplate[] = [
       ],
     },
   },
+  {
+    key: "inbox_manager",
+    name: "Inbox Manager",
+    description:
+      "Reviews unread messages in your connected inbox on demand and decides what each one needs: a direct reply, filing as a record, or flagging to the team.",
+    // LOOP, not a step programme — this genuinely can't be pre-sequenced:
+    // how many messages there are, and what each one turns out to need, is
+    // only known once read_inbox actually returns something. A HARNESS
+    // `act` step is also always terminal (steps/schema.ts), so it could
+    // never act on more than one message in a single run anyway.
+    categoryType: "loop",
+    instructions:
+      "Use read_inbox to see what unread messages are waiting. For each one, decide what it needs: if it can be answered directly, reply using send_email; if it should be logged (an order, invoice, application, or similar), file it with create_record; if it needs a person's judgement or you don't have enough information to act confidently, flag it to the team with notify_channel instead of guessing. Say plainly what you found and what you did with each message.",
+    suggestedTools: [
+      "read_inbox",
+      "send_email",
+      "create_record",
+      "notify_channel",
+    ],
+    steps: { steps: [] },
+  },
 ];
