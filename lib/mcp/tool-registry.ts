@@ -97,6 +97,13 @@ export const TOOL_REGISTRY = [
       "Fill a business's .docx template with real data and save the result to their connected storage.",
   },
   {
+    name: "list_invokable",
+    group: "Orchestration",
+    label: "List invokable agents and workflows",
+    description:
+      "See exactly which agents and departments are currently active and invokable, right now.",
+  },
+  {
     name: "invoke_agent",
     group: "Orchestration",
     label: "Invoke agent",
