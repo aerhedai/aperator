@@ -15,10 +15,15 @@ const SLACK_SCOPES = "chat:write,chat:write.public";
 // below does not yet capture or persist authed_user.access_token, so none of
 // this is usable by any tool yet — that's a separate, not-yet-built piece of
 // work, not an oversight.
+//
+// Deliberately excludes identity.basic: that's a legacy "Sign in with Slack"
+// scope belonging to a different endpoint (slack.com/openid/connect/authorize),
+// not a real scope in the modern granular catalog this oauth/v2/authorize
+// request draws from — including it makes Slack reject the *entire* request
+// as "Invalid permissions requested" (confirmed live).
 const SLACK_USER_SCOPES = [
   "reminders:read",
   "users.profile:read",
-  "identity.basic",
   "channels:history",
   "channels:read",
   "groups:history",
