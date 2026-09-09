@@ -8,6 +8,59 @@ import type { OAuthAdapter } from "@/lib/integrations/oauth-adapter";
 // non-technical business owner.
 const SLACK_SCOPES = "chat:write,chat:write.public";
 
+// A deliberate widening requested on top of the bot scopes above — these are
+// Slack *user* token scopes (Slack's OAuth v2 issues a separate
+// authed_user.access_token for these, distinct from the bot token SLACK_SCOPES
+// produces). Requested here so the consent screen shows them; exchangeSlackCode
+// below does not yet capture or persist authed_user.access_token, so none of
+// this is usable by any tool yet — that's a separate, not-yet-built piece of
+// work, not an oversight.
+const SLACK_USER_SCOPES = [
+  "reminders:read",
+  "users.profile:read",
+  "identity.basic",
+  "channels:history",
+  "channels:read",
+  "groups:history",
+  "groups:read",
+  "im:history",
+  "im:read",
+  "links:read",
+  "mpim:history",
+  "mpim:read",
+  "pins:read",
+  "reactions:read",
+  "search:read.files",
+  "search:read.im",
+  "search:read.mpim",
+  "search:read.private",
+  "search:read.public",
+  "calls:read",
+  "dnd:read",
+  "emoji:read",
+  "files:read",
+  "remote_files:read",
+  "team:read",
+  "usergroups:read",
+  "users:read",
+  "users:read.email",
+  "chat:write",
+  "dnd:write",
+  "groups:write",
+  "im:write",
+  "mpim:write",
+  "pins:write",
+  "reactions:write",
+  "remote_files:share",
+  "users.profile:write",
+  "users:write",
+  "files:write",
+  "links:write",
+  "calls:write",
+  "reminders:write",
+  "usergroups:write",
+].join(",");
+
 function requireSlackConfig() {
   if (
     !env.SLACK_CLIENT_ID ||
@@ -35,6 +88,7 @@ export function buildSlackAuthUrl(
     client_id: clientId,
     redirect_uri: redirectUri,
     scope: SLACK_SCOPES,
+    user_scope: SLACK_USER_SCOPES,
     state,
   });
   // Required by Slack for a redirect_uri that isn't a real HTTPS URL —
@@ -59,6 +113,11 @@ interface SlackOAuthResponse {
   // enabled here, so these are never expected in practice, but the shape
   // is read defensively rather than assumed absent.
   expires_in?: number;
+  // A separate credential from access_token above — Slack issues this only
+  // when the request carried a user_scope (SLACK_USER_SCOPES). Optional: a
+  // user can decline the user-scope consent independently of the bot
+  // install, so this may be absent even on an otherwise-successful exchange.
+  authed_user?: { id: string; access_token?: string };
 }
 
 export interface SlackTokens {
@@ -67,6 +126,11 @@ export interface SlackTokens {
   teamId: string;
   teamName: string;
   expiresAt: Date | null;
+  // Null when the user didn't grant the user_scope permissions (e.g.
+  // declined that half of the consent screen) — nothing currently reads
+  // this token, it's stored for when a tool that needs it exists.
+  userAccessToken: string | null;
+  authedUserId: string | null;
 }
 
 export async function exchangeSlackCode(
@@ -110,6 +174,8 @@ export async function exchangeSlackCode(
     expiresAt: data.expires_in
       ? new Date(Date.now() + data.expires_in * 1000)
       : null,
+    userAccessToken: data.authed_user?.access_token ?? null,
+    authedUserId: data.authed_user?.id ?? null,
   };
 }
 
@@ -122,7 +188,12 @@ export const slackOAuthAdapter: OAuthAdapter = {
     return {
       accountName: tokens.teamName,
       config: { teamId: tokens.teamId, teamName: tokens.teamName },
-      credentials: { botToken: tokens.botToken, botUserId: tokens.botUserId },
+      credentials: {
+        botToken: tokens.botToken,
+        botUserId: tokens.botUserId,
+        userAccessToken: tokens.userAccessToken,
+        authedUserId: tokens.authedUserId,
+      },
       expiresAt: tokens.expiresAt,
     };
   },

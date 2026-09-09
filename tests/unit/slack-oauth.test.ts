@@ -40,7 +40,31 @@ describe("exchangeSlackCode", () => {
       teamId: "T123ABC",
       teamName: "Acme Workspace",
       expiresAt: null,
+      userAccessToken: null,
+      authedUserId: null,
     });
+  });
+
+  it("captures authed_user's access token when the user granted user_scope permissions", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            ok: true,
+            access_token: "xoxb-fake-token",
+            bot_user_id: "U123ABC",
+            team: { id: "T123ABC", name: "Acme Workspace" },
+            authed_user: { id: "U456DEF", access_token: "xoxp-fake-token" },
+          }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const tokens = await exchangeSlackCode("fake-code");
+
+    expect(tokens.userAccessToken).toBe("xoxp-fake-token");
+    expect(tokens.authedUserId).toBe("U456DEF");
   });
 
   it("throws using Slack's own error field when ok is false, despite HTTP 200", async () => {

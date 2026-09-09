@@ -2,14 +2,26 @@ import { env } from "@/lib/env";
 import * as microsoftCore from "@/lib/integrations/microsoft/oauth-core";
 import type { OAuthAdapter } from "@/lib/integrations/oauth-adapter";
 
+// A deliberate widening, not the minimum this code exercises today —
+// outlook/client.ts only ever reads/sends/marks-read mail. Calendars.*,
+// Contacts.*, and MailboxSettings.* are requested but currently unused by
+// any Aperator code; Mail.ReadWrite is the one addition this code actually
+// needed (markOutlookMessageRead's PATCH requires it — Mail.Read alone
+// can't update isRead).
 const OUTLOOK_SCOPES = [
   "openid",
   "profile",
   "email",
   "offline_access",
   "https://graph.microsoft.com/User.Read",
+  "https://graph.microsoft.com/Calendars.Read",
+  "https://graph.microsoft.com/Calendars.ReadWrite",
+  "https://graph.microsoft.com/Contacts.ReadWrite",
   "https://graph.microsoft.com/Mail.Read",
+  "https://graph.microsoft.com/Mail.ReadWrite",
   "https://graph.microsoft.com/Mail.Send",
+  "https://graph.microsoft.com/MailboxSettings.Read",
+  "https://graph.microsoft.com/MailboxSettings.ReadWrite",
 ];
 
 function requireOutlookRedirectUri(): string {
