@@ -358,4 +358,45 @@ export const BUILT_IN_WORKFLOW_TEMPLATES: BuiltInWorkflowTemplate[] = [
       },
     ],
   },
+  {
+    key: "onboarding",
+    name: "Onboarding",
+    description:
+      "Routes new-arrival setup: getting a new customer going is a different process from getting a new employee going.",
+    classifierInstructions: DEFAULT_CLASSIFIER_INSTRUCTIONS,
+    recordTypes: ["Customer"],
+    handlers: [
+      {
+        name: "New Customer Setup",
+        description:
+          "Sets up a new customer: logs their details as a Customer record and sends them a welcome email.",
+        // Loop, not steps — needs two real actions in sequence (log the
+        // record, then email them), which a HARNESS step programme's
+        // single terminal `act` step can't do in one run.
+        categoryType: "loop",
+        instructions:
+          "A new customer needs setting up. Extract their name, email, and company if mentioned. Create a Customer record with those details, then send them a short, friendly welcome email confirming they're set up.",
+        suggestedTools: ["create_record", "send_email"],
+        keywords: ["new customer", "sign up", "sign me up", "get started"],
+      },
+      {
+        name: "New Employee Setup",
+        description:
+          "Sets up a new employee: creates their folder in shared storage and lets the team know someone new is starting.",
+        // Also genuinely loop-shaped — create the folder, then notify the
+        // team, two sequenced actions.
+        categoryType: "loop",
+        instructions:
+          "A new employee is starting. Extract their name and start date if mentioned. Create a folder for them in shared storage, then post a notification to the team channel letting them know who's starting and when.",
+        suggestedTools: ["create_folder", "notify_channel"],
+        keywords: [
+          "new employee",
+          "new hire",
+          "new starter",
+          "onboarding",
+          "joining the team",
+        ],
+      },
+    ],
+  },
 ];

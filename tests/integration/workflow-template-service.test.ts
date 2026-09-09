@@ -55,6 +55,7 @@ describe("workflow template service", () => {
         "Scheduling & Bookings",
         "Document & Records",
         "People & Internal Requests",
+        "Onboarding",
       ]),
     );
     expect(templates.every((t) => t.builtIn)).toBe(true);
@@ -148,6 +149,38 @@ describe("workflow template service", () => {
       await prisma.customEntityType.findMany({ where: { organisationId } })
     ).map((t) => t.name);
     expect(recordTypeNames).toEqual(["Customer"]);
+  });
+
+  it("installs Onboarding with two genuinely different setup handlers", async () => {
+    const templates =
+      await workflowTemplateService.listWorkflowTemplates(organisationId);
+    const template = templates.find((t) => t.name === "Onboarding");
+    if (!template) throw new Error("fixture template not found");
+
+    const result = await workflowTemplateService.installWorkflowTemplate(
+      organisationId,
+      template.id,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const workflow = await prisma.workflow.findFirst({
+      where: { id: result.workflowId },
+      include: { members: { include: { agent: true } } },
+    });
+    expect(workflow!.members).toHaveLength(3);
+    const handlerMembers = workflow!.members.filter(
+      (m) => m.role === "HANDLER",
+    );
+    expect(handlerMembers.map((m) => m.agent.name).sort()).toEqual([
+      "New Customer Setup",
+      "New Employee Setup",
+    ]);
+    // Both genuinely need two sequenced actions (log/notify, then email) —
+    // a HARNESS step programme's single terminal `act` step can't do that.
+    expect(handlerMembers.every((m) => m.agent.executionMode === "LOOP")).toBe(
+      true,
+    );
   });
 
   it("seeds no record types for a department whose handlers don't need any", async () => {

@@ -24,6 +24,7 @@ import { createPopulateTemplateTool } from "@/lib/mcp/tools/populate-template";
 import { createSaveFileTool } from "@/lib/mcp/tools/save-file";
 import { createSearchKnowledgeTool } from "@/lib/mcp/tools/search-knowledge";
 import { createSearchRecordsTool } from "@/lib/mcp/tools/search-records";
+import { createReadInboxTool } from "@/lib/mcp/tools/read-inbox";
 import { createSendEmailTool } from "@/lib/mcp/tools/send-email";
 import { createUpdateRecordTool } from "@/lib/mcp/tools/update-record";
 import * as workflowService from "@/lib/workflows/workflow-service";
@@ -149,6 +150,7 @@ export async function createMcpServer(
   register(createUpdateRecordTool(organisationId));
 
   // Communicate
+  register(createReadInboxTool(organisationId, emailId), readOnly);
   register(createSendEmailTool(organisationId, emailId));
   register(createNotifyChannelTool(organisationId, slackId, teamsId));
 

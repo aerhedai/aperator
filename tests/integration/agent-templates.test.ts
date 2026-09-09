@@ -4,6 +4,7 @@ import { BUILT_IN_TEMPLATES } from "@/lib/agents/built-in-templates";
 import * as templateService from "@/lib/agents/template-service";
 import { prisma } from "@/lib/db/prisma";
 import { stepProgrammeSchema } from "@/lib/harness/steps/schema";
+import { TOOL_NAMES } from "@/lib/mcp/tool-registry";
 
 // Templates are where verticals live now — "Look up and quote" is a row
 // here rather than a category every unrelated business scrolls past. These
@@ -30,10 +31,19 @@ describe("agent templates", () => {
     await prisma.$disconnect();
   });
 
+  // "loop" templates (e.g. Inbox Manager) don't have a step programme at
+  // all — their `steps` field is an unused placeholder (installAgentSpec
+  // never validates or runs it for that categoryType; the runtime is a
+  // free-form tool-calling loop, not a fixed sequence) — so neither check
+  // below applies to them.
+  const stepProgrammeTemplates = BUILT_IN_TEMPLATES.filter(
+    (t) => (t.categoryType ?? "steps") === "steps",
+  );
+
   it("every built-in template is a programme the runtime would actually accept", () => {
     // A template that can't run isn't a starting point, it's a trap —
     // someone installs it, presses save, and finds out later.
-    for (const template of BUILT_IN_TEMPLATES) {
+    for (const template of stepProgrammeTemplates) {
       const result = stepProgrammeSchema.safeParse(template.steps);
       expect(
         result.success,
@@ -49,7 +59,7 @@ describe("agent templates", () => {
     // `lookup` calls find_record or search_records depending on its match
     // type, and `retrieve` calls search_knowledge — both without the tool
     // name appearing anywhere in the step.
-    for (const template of BUILT_IN_TEMPLATES) {
+    for (const template of stepProgrammeTemplates) {
       const steps = template.steps.steps;
       const required = new Set<string>();
       for (const step of steps) {
@@ -73,6 +83,26 @@ describe("agent templates", () => {
         expect(
           template.suggestedTools.includes(tool),
           `${template.name} has a step needing "${tool}" but doesn't suggest it`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("every loop template's suggested tools are real, registered tools", () => {
+    // A loop template has no step programme to cross-check suggestedTools
+    // against (the model decides tool order itself at runtime) — the
+    // equivalent check here is just that nothing suggests a tool that
+    // doesn't actually exist, which installAgentSpec's own toolNames
+    // validation would otherwise only catch at install time.
+    const loopTemplates = BUILT_IN_TEMPLATES.filter(
+      (t) => t.categoryType === "loop",
+    );
+    expect(loopTemplates.length).toBeGreaterThan(0);
+    for (const template of loopTemplates) {
+      for (const tool of template.suggestedTools) {
+        expect(
+          (TOOL_NAMES as readonly string[]).includes(tool),
+          `${template.name} suggests "${tool}", which isn't a real tool`,
         ).toBe(true);
       }
     }

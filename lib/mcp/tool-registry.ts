@@ -48,6 +48,13 @@ export const TOOL_REGISTRY = [
       "Look something up in this business's own documented knowledge — policies, procedures, price lists, FAQs.",
   },
   {
+    name: "read_inbox",
+    group: "Communication",
+    label: "Read inbox",
+    description:
+      "List unread messages waiting in whichever email account is connected (Gmail or Outlook), with their full content.",
+  },
+  {
     name: "send_email",
     group: "Communication",
     label: "Send email",
