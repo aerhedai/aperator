@@ -65,7 +65,9 @@
      trustworthy enterprise palette instead of default Tailwind blue.
      Status colors (success/warning/destructive) are semantic and never
      the sole indicator of state — always paired with text/icons. */
-  --background: oklch(0.984 0.003 247.858);
+  /* Page canvas: a touch greyer than the sidebar/card white so pages
+     read as a distinct surface behind the nav and content widgets. */
+  --background: oklch(0.965 0.006 247.858);
   --foreground: oklch(0.208 0.042 265.755);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.208 0.042 265.755);
@@ -124,20 +126,23 @@
 }
 
 .dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
+  /* Warm near-black scale, darkest to lightest: navbar (#1f150c) → page
+     background → card/popover → secondary/muted/accent fills. Replaces
+     the previous navy-based dark palette; text is plain white throughout. */
+  --background: oklch(0.27 0.02 62.949);
+  --foreground: oklch(1 0 0);
+  --card: oklch(0.345 0.017 62.949);
+  --card-foreground: oklch(1 0 0);
+  --popover: oklch(0.345 0.017 62.949);
+  --popover-foreground: oklch(1 0 0);
   --primary: oklch(0.984 0.003 247.858);
   --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
+  --secondary: oklch(0.4 0.015 62.949);
+  --secondary-foreground: oklch(1 0 0);
+  --muted: oklch(0.4 0.015 62.949);
   --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
+  --accent: oklch(0.4 0.015 62.949);
+  --accent-foreground: oklch(1 0 0);
   --success: oklch(0.723 0.219 149.579);
   --success-foreground: oklch(0.129 0.042 264.695);
   --warning: oklch(0.769 0.188 70.08);
@@ -151,12 +156,12 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
+  --sidebar: oklch(0.206 0.023 62.949);
+  --sidebar-foreground: oklch(1 0 0);
   --sidebar-primary: oklch(0.984 0.003 247.858);
   --sidebar-primary-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-accent: oklch(0.4 0.015 62.949);
+  --sidebar-accent-foreground: oklch(1 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.984 0.003 247.858);
   --app-accent: oklch(0.7 0.15 45);
