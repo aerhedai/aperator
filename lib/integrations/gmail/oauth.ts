@@ -3,12 +3,12 @@ import { getGmailProfile } from "@/lib/integrations/gmail/client";
 import * as googleCore from "@/lib/integrations/google/oauth-core";
 import type { OAuthAdapter } from "@/lib/integrations/oauth-adapter";
 
-// gmail.modify covers reading messages and marking them read (removing the
-// UNREAD label); sending needs its own scope on top of that.
-const GMAIL_SCOPES = [
-  "https://www.googleapis.com/auth/gmail.modify",
-  "https://www.googleapis.com/auth/gmail.send",
-];
+// The full-account scope: read, compose, send, and permanently delete mail
+// (Google's own consent-screen wording for this exact scope). Deliberately
+// broader than gmail.modify+gmail.send (which can trash but never
+// permanently delete) — a considered choice, not the least-privilege
+// default, so it's called out here rather than left to look accidental.
+const GMAIL_SCOPES = ["https://mail.google.com/"];
 
 // Deliberately still GOOGLE_REDIRECT_URI (not GOOGLE_GMAIL_REDIRECT_URI) —
 // this is Gmail's pre-existing, already-deployed env var; renaming it would
