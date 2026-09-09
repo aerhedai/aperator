@@ -2,12 +2,12 @@ import { env } from "@/lib/env";
 import * as googleCore from "@/lib/integrations/google/oauth-core";
 import type { OAuthAdapter } from "@/lib/integrations/oauth-adapter";
 
-// drive.file (not the broad "drive" scope) — Aperator only ever needs to
-// read/write the files and folders it creates itself (an archive folder
-// per client/job), never a business's entire existing Drive. openid+email
-// identify which account connected, the same as every other provider here.
+// Full "drive" scope (not the narrower "drive.file") — a considered choice
+// to let Aperator read/write the connected account's entire Drive, not just
+// files it creates itself. openid+email identify which account connected,
+// the same as every other provider here.
 const GOOGLE_DRIVE_SCOPES = [
-  "https://www.googleapis.com/auth/drive.file",
+  "https://www.googleapis.com/auth/drive",
   "openid",
   "email",
 ];
