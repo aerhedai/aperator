@@ -7,6 +7,8 @@ import {
   listUnreadOutlookMessages,
 } from "@/lib/integrations/outlook/client";
 import { extractEmailDeterministically } from "@/lib/harness/pipeline-helpers";
+import { ensureScopeAvailable } from "@/lib/mcp/tools/shared/ensure-scope-available";
+import { translateScopeError } from "@/lib/mcp/tools/shared/translate-scope-error";
 import { toolError, toolSuccess } from "@/lib/mcp/tool-result";
 
 const inputSchema = {
@@ -56,6 +58,14 @@ export function createOutlookReadInboxTool(
     outputSchema,
     handler: async ({ maxResults }: { maxResults: number }) => {
       try {
+        const scopeError = await ensureScopeAvailable(
+          organisationId,
+          "outlook",
+          actionIntegrationId,
+          "OUTLOOK_READ_INBOX",
+        );
+        if (scopeError) return toolError(scopeError);
+
         const accessToken = await getValidOutlookAccessToken(
           organisationId,
           actionIntegrationId,
@@ -81,9 +91,7 @@ export function createOutlookReadInboxTool(
 
         return toolSuccess({ messages });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Failed to read the inbox.";
-        return toolError(message);
+        return toolError(translateScopeError(error));
       }
     },
   };

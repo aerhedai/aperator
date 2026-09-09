@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -21,7 +21,12 @@ import {
   buildMcpToolName,
   type DiscoveredMcpTool,
 } from "@/lib/integrations/mcp/tool-naming";
-import { TOOL_GROUPS, TOOL_REGISTRY } from "@/lib/mcp/tool-registry";
+import { getAvailableTools } from "@/lib/mcp/scope-tool-map";
+import {
+  getToolProvider,
+  TOOL_GROUPS,
+  TOOL_REGISTRY,
+} from "@/lib/mcp/tool-registry";
 
 /**
  * Creating an agent.
@@ -128,6 +133,38 @@ const FIELD_SECTION: Record<string, Section> = {
   model: "routing",
 };
 
+// Which provider-specific tools this organisation's connected accounts can
+// actually use, given what scope each account was granted at OAuth time —
+// the same lib/mcp/scope-tool-map.ts a tool's own handler checks reactively
+// and proactively (lib/mcp/tools/shared/ensure-scope-available.ts) at
+// runtime. Ticking a tool here that isn't in this set would grant it
+// something that's refused the moment it's actually called.
+//
+// Computed per-provider across *all* of that provider's connected accounts,
+// not just whichever one is currently picked as "Action account" — that
+// selector only ever offers Gmail accounts today (a pre-existing gap, not
+// this feature's problem to fix) and no other provider-specific tool has a
+// per-agent account binding at all (see agent-service.ts's
+// ACTION_ACCOUNT_PROVIDERS), so every one of them always resolves against
+// the organisation's connected account(s) regardless of anything chosen in
+// this form. A tool is offered if *any* connected account for its provider
+// grants the scope it needs — consistent with how ensureScopeAvailable
+// falls back to the organisation's default account when nothing is pinned.
+function computeAvailableTools(
+  connectedIntegrations: { provider: string; grantedScopes: string[] }[],
+): Set<string> {
+  const available = new Set<string>();
+  for (const integration of connectedIntegrations) {
+    for (const tool of getAvailableTools(
+      integration.provider,
+      integration.grantedScopes,
+    )) {
+      available.add(tool);
+    }
+  }
+  return available;
+}
+
 function sectionForFirstError(
   fieldErrors: AgentFormState["fieldErrors"],
 ): Section | null {
@@ -145,6 +182,7 @@ export function AgentForm({
   submitLabel,
   templates = [],
   gmailIntegrations = [],
+  connectedIntegrations = [],
   mcpConnections = [],
   initialStepsConfig,
   preselectedTemplate,
@@ -159,6 +197,10 @@ export function AgentForm({
   // default so any caller not yet passing them still renders.
   templates?: TemplateOption[];
   gmailIntegrations?: { id: string; name: string }[];
+  // Every connected account across every provider (not just Gmail), with
+  // the scopes it actually granted — used only to decide which
+  // provider-specific tools below are checkable, per computeAvailableTools.
+  connectedIntegrations?: { provider: string; grantedScopes: string[] }[];
   // This organisation's connected external MCP servers, with the tools
   // discovered from each one's tools/list call. Empty by default so any
   // caller not yet passing them still renders exactly as before.
@@ -236,6 +278,11 @@ export function AgentForm({
       return next;
     });
   }
+
+  const availableTools = useMemo(
+    () => computeAvailableTools(connectedIntegrations),
+    [connectedIntegrations],
+  );
 
   function toggleTool(name: string, checked: boolean) {
     setToolNames((current) => {
@@ -462,31 +509,59 @@ export function AgentForm({
                       {group}
                     </span>
                     {TOOL_REGISTRY.filter((tool) => tool.group === group).map(
-                      (tool) => (
-                        <label
-                          key={tool.name}
-                          className="flex items-start gap-2 text-sm"
-                          htmlFor={`tool-${tool.name}`}
-                        >
-                          <input
-                            type="checkbox"
-                            id={`tool-${tool.name}`}
-                            name="toolNames"
-                            value={tool.name}
-                            checked={toolNames.has(tool.name)}
-                            onChange={(e) =>
-                              toggleTool(tool.name, e.target.checked)
-                            }
-                            className="mt-0.5 h-4 w-4 rounded border-border"
-                          />
-                          <span className="flex flex-col">
-                            <span className="font-medium">{tool.label}</span>
-                            <span className="text-muted-foreground">
-                              {tool.description}
+                      (tool) => {
+                        const checked = toolNames.has(tool.name);
+                        // A tool this organisation's connected account(s)
+                        // can't actually use is left checkable if it's
+                        // already granted (so an existing grant that a
+                        // since-narrowed reconnect made unusable stays
+                        // visible rather than silently vanishing from the
+                        // form on next save) but can't be newly ticked.
+                        const provider = getToolProvider(tool.name);
+                        const unavailable =
+                          provider !== undefined &&
+                          !availableTools.has(tool.name) &&
+                          !checked;
+                        return (
+                          <label
+                            key={tool.name}
+                            className="flex items-start gap-2 text-sm"
+                            htmlFor={`tool-${tool.name}`}
+                          >
+                            <input
+                              type="checkbox"
+                              id={`tool-${tool.name}`}
+                              name="toolNames"
+                              value={tool.name}
+                              checked={checked}
+                              disabled={unavailable}
+                              onChange={(e) =>
+                                toggleTool(tool.name, e.target.checked)
+                              }
+                              className="mt-0.5 h-4 w-4 rounded border-border disabled:cursor-not-allowed disabled:opacity-50"
+                            />
+                            <span className="flex flex-col">
+                              <span
+                                className={cn(
+                                  "font-medium",
+                                  unavailable && "text-muted-foreground",
+                                )}
+                              >
+                                {tool.label}
+                              </span>
+                              <span className="text-muted-foreground">
+                                {tool.description}
+                              </span>
+                              {unavailable && (
+                                <span className="text-xs text-destructive">
+                                  Not available — reconnect {tool.group} from
+                                  Settings and grant this permission.
+                                </span>
+                              )}
                             </span>
-                          </span>
-                        </label>
-                      ),
+                          </label>
+                        );
+                      },
                     )}
                   </div>
                 ))}

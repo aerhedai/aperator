@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import { ensureFolderPath } from "@/lib/integrations/google-drive/client";
 import { getValidGoogleDriveAccessToken } from "@/lib/integrations/integration-service";
+import { ensureScopeAvailable } from "@/lib/mcp/tools/shared/ensure-scope-available";
+import { translateScopeError } from "@/lib/mcp/tools/shared/translate-scope-error";
 import { toolError, toolSuccess } from "@/lib/mcp/tool-result";
 
 const inputSchema = {
@@ -31,16 +33,20 @@ export function createGoogleDriveCreateFolderTool(organisationId: string) {
     outputSchema,
     handler: async ({ path }: { path: string[] }) => {
       try {
+        const scopeError = await ensureScopeAvailable(
+          organisationId,
+          "google-drive",
+          undefined,
+          "GOOGLE_DRIVE_CREATE_FOLDER",
+        );
+        if (scopeError) return toolError(scopeError);
+
         const accessToken =
           await getValidGoogleDriveAccessToken(organisationId);
         const folderId = await ensureFolderPath(accessToken, path);
         return toolSuccess({ folderId });
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to create storage folder.";
-        return toolError(message);
+        return toolError(translateScopeError(error));
       }
     },
   };

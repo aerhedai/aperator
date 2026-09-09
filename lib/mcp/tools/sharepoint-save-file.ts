@@ -7,6 +7,8 @@ import {
   resolveSite,
   uploadOrReplaceFile,
 } from "@/lib/integrations/sharepoint/client";
+import { ensureScopeAvailable } from "@/lib/mcp/tools/shared/ensure-scope-available";
+import { translateScopeError } from "@/lib/mcp/tools/shared/translate-scope-error";
 import { toolError, toolSuccess } from "@/lib/mcp/tool-result";
 
 const inputSchema = {
@@ -54,6 +56,14 @@ export function createSharePointSaveFileTool(organisationId: string) {
       replace: boolean;
     }) => {
       try {
+        const scopeError = await ensureScopeAvailable(
+          organisationId,
+          "sharepoint",
+          undefined,
+          "SHAREPOINT_SAVE_FILE",
+        );
+        if (scopeError) return toolError(scopeError);
+
         const content = Buffer.from(contentBase64, "base64");
         const accessToken = await getValidSharePointAccessToken(organisationId);
         const site = await resolveSite(accessToken, siteName);
@@ -75,9 +85,7 @@ export function createSharePointSaveFileTool(organisationId: string) {
         );
         return toolSuccess({ fileId: file.id });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Failed to save the file.";
-        return toolError(message);
+        return toolError(translateScopeError(error));
       }
     },
   };

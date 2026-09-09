@@ -6,6 +6,8 @@ import {
   resolveDefaultDriveId,
   resolveSite,
 } from "@/lib/integrations/sharepoint/client";
+import { ensureScopeAvailable } from "@/lib/mcp/tools/shared/ensure-scope-available";
+import { translateScopeError } from "@/lib/mcp/tools/shared/translate-scope-error";
 import { toolError, toolSuccess } from "@/lib/mcp/tool-result";
 
 const inputSchema = {
@@ -41,6 +43,14 @@ export function createSharePointCreateFolderTool(organisationId: string) {
       path: string[];
     }) => {
       try {
+        const scopeError = await ensureScopeAvailable(
+          organisationId,
+          "sharepoint",
+          undefined,
+          "SHAREPOINT_CREATE_FOLDER",
+        );
+        if (scopeError) return toolError(scopeError);
+
         const accessToken = await getValidSharePointAccessToken(organisationId);
         const site = await resolveSite(accessToken, siteName);
         if (!site) {
@@ -52,11 +62,7 @@ export function createSharePointCreateFolderTool(organisationId: string) {
         const folderId = await ensureFolderPath(accessToken, driveId, path);
         return toolSuccess({ folderId });
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to create storage folder.";
-        return toolError(message);
+        return toolError(translateScopeError(error));
       }
     },
   };

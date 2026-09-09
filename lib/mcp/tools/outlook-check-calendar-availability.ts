@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import { getValidOutlookCalendarAccessToken } from "@/lib/integrations/integration-service";
 import { findMeetingTimes } from "@/lib/integrations/outlook-calendar/client";
+import { ensureScopeAvailable } from "@/lib/mcp/tools/shared/ensure-scope-available";
+import { translateScopeError } from "@/lib/mcp/tools/shared/translate-scope-error";
 import { toolError, toolSuccess } from "@/lib/mcp/tool-result";
 
 const inputSchema = {
@@ -53,6 +55,14 @@ export function createOutlookCheckCalendarAvailabilityTool(
       rangeEnd: string;
     }) => {
       try {
+        const scopeError = await ensureScopeAvailable(
+          organisationId,
+          "outlook-calendar",
+          actionIntegrationId,
+          "OUTLOOK_CHECK_CALENDAR_AVAILABILITY",
+        );
+        if (scopeError) return toolError(scopeError);
+
         const accessToken = await getValidOutlookCalendarAccessToken(
           organisationId,
           actionIntegrationId,
@@ -65,11 +75,7 @@ export function createOutlookCheckCalendarAvailabilityTool(
         });
         return toolSuccess({ found: suggestions.length > 0, suggestions });
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to check calendar availability.";
-        return toolError(message);
+        return toolError(translateScopeError(error));
       }
     },
   };

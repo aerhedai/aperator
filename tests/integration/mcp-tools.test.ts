@@ -411,6 +411,7 @@ describe("MCP tool server", () => {
         refreshToken: "refresh-outlook",
       },
       expiresAt: new Date(Date.now() + 3600_000),
+      grantedScopes: ["https://graph.microsoft.com/Mail.Send"],
     });
     const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
     vi.stubGlobal("fetch", fetchMock);
@@ -428,6 +429,40 @@ describe("MCP tool server", () => {
     expect(result.structuredContent).toEqual({ sent: true });
     const [calledUrl] = fetchMock.mock.calls[0] as unknown as [string];
     expect(calledUrl).toContain("/sendMail");
+  });
+
+  it("OUTLOOK_SEND_EMAIL is denied when the connected account has Mail.Read but not Mail.Send — the real, genuinely-partial-grant case", async () => {
+    await integrationService.connectOAuthAccount(organisationId, "outlook", {
+      accountName: "sales@acme.test",
+      config: { email: "sales@acme.test" },
+      credentials: {
+        accessToken: "access-outlook",
+        refreshToken: "refresh-outlook",
+      },
+      expiresAt: new Date(Date.now() + 3600_000),
+      // Declined Mail.Send on the consent screen — a real, not synthetic,
+      // partial grant (unlike every other provider here, Outlook's
+      // Mail.Read/Mail.Send are independently grantable).
+      grantedScopes: ["https://graph.microsoft.com/Mail.Read"],
+    });
+    const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await client.callTool({
+      name: "OUTLOOK_SEND_EMAIL",
+      arguments: {
+        to: "buyer@customer-abc.test",
+        subject: "Your quote",
+        body: "£7,500 for 500 units of Product A.",
+      },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content).toMatchObject([
+      { type: "text", text: expect.stringContaining("Tool access denied") },
+    ]);
+    // Caught proactively, before ever attempting the real API call.
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("SLACK_POST_MESSAGE reports a tool error when Slack isn't connected for the organisation", async () => {
@@ -809,6 +844,7 @@ describe("MCP tool server", () => {
           refreshToken: "drive-refresh",
         },
         expiresAt: new Date(Date.now() + 3600_000),
+        grantedScopes: ["https://www.googleapis.com/auth/drive"],
       },
     );
 
@@ -915,6 +951,7 @@ describe("MCP tool server", () => {
           refreshToken: "drive-refresh",
         },
         expiresAt: new Date(Date.now() + 3600_000),
+        grantedScopes: ["https://www.googleapis.com/auth/drive"],
       },
     );
     await integrationService.connectGmailAccount(
@@ -924,6 +961,7 @@ describe("MCP tool server", () => {
         accessToken: "gmail-token",
         refreshToken: "gmail-refresh",
         expiresAt: new Date(Date.now() + 3600_000),
+        scope: "https://mail.google.com/",
       },
     );
 

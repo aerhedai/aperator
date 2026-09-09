@@ -6,6 +6,8 @@ import {
   attachmentRefSchema,
   resolveStorageAttachment,
 } from "@/lib/mcp/tools/shared/resolve-storage-attachment";
+import { ensureScopeAvailable } from "@/lib/mcp/tools/shared/ensure-scope-available";
+import { translateScopeError } from "@/lib/mcp/tools/shared/translate-scope-error";
 import { toolError, toolSuccess } from "@/lib/mcp/tool-result";
 
 const inputSchema = {
@@ -59,6 +61,14 @@ export function createOutlookSendEmailTool(
       attachments?: z.infer<typeof attachmentRefSchema>[];
     }) => {
       try {
+        const scopeError = await ensureScopeAvailable(
+          organisationId,
+          "outlook",
+          actionIntegrationId,
+          "OUTLOOK_SEND_EMAIL",
+        );
+        if (scopeError) return toolError(scopeError);
+
         const resolvedAttachments = attachments
           ? await Promise.all(
               attachments.map((ref) =>
@@ -79,9 +89,7 @@ export function createOutlookSendEmailTool(
         });
         return toolSuccess({ sent: true });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Failed to send email.";
-        return toolError(message);
+        return toolError(translateScopeError(error));
       }
     },
   };
