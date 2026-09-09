@@ -18,18 +18,21 @@ const outputSchema = {
 
 /**
  * organisationId/actionIntegrationId bound at server-construction time,
- * never a tool argument (CLAUDE.md #22). Mutating and externally visible
+ * never a tool argument (CLAUDE.md §22). Mutating and externally visible
  * once attendees are invited — always requires human approval before
- * executing (lib/policies/policy-engine.ts's REQUIRES_APPROVAL_BEFORE_EXECUTION),
- * the same reasoning as send_email: approving after the fact can't
- * un-invite a real meeting.
+ * executing (lib/policies/policy-engine.ts's
+ * REQUIRES_APPROVAL_BEFORE_EXECUTION), the same reasoning as
+ * GMAIL_SEND_EMAIL/OUTLOOK_SEND_EMAIL: approving after the fact can't
+ * un-invite a real meeting. Named with the OUTLOOK_ prefix even though it's
+ * the only calendar provider today — see
+ * OUTLOOK_CHECK_CALENDAR_AVAILABILITY's own comment for why.
  */
-export function createCreateCalendarEventTool(
+export function createOutlookCreateCalendarEventTool(
   organisationId: string,
   actionIntegrationId?: string | null,
 ) {
   return {
-    name: "create_calendar_event",
+    name: "OUTLOOK_CREATE_CALENDAR_EVENT",
     description:
       "Create a real Outlook Calendar event and invite attendees — always requires approval before sending.",
     inputSchema,

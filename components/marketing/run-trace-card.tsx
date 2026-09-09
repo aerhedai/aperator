@@ -9,10 +9,10 @@ const STEPS: { label: string; detail: string; tone?: "success" | "warning" }[] =
     { label: "Priced", detail: "500 x £15.00 = £7,500" },
     {
       label: "Approval requested",
-      detail: "send_email needs a human",
+      detail: "GMAIL_SEND_EMAIL needs a human",
       tone: "warning",
     },
-    { label: "send_email", detail: "Quote sent" },
+    { label: "GMAIL_SEND_EMAIL", detail: "Quote sent" },
     { label: "Run completed", detail: "8.4s · 375 tokens", tone: "success" },
   ];
 

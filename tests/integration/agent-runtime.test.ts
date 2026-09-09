@@ -74,10 +74,12 @@ describe("agent runtime", () => {
       },
     });
     await prisma.agentTool.createMany({
-      data: ["find_record", "search_records", "send_email"].map((toolName) => ({
-        agentId: agent.id,
-        toolName,
-      })),
+      data: ["find_record", "search_records", "GMAIL_SEND_EMAIL"].map(
+        (toolName) => ({
+          agentId: agent.id,
+          toolName,
+        }),
+      ),
     });
 
     restrictedAgent = await prisma.agent.create({
@@ -91,7 +93,7 @@ describe("agent runtime", () => {
       },
     });
     await prisma.agentTool.create({
-      data: { agentId: restrictedAgent.id, toolName: "send_email" },
+      data: { agentId: restrictedAgent.id, toolName: "GMAIL_SEND_EMAIL" },
     });
 
     chatAgent = await prisma.agent.create({
@@ -207,7 +209,7 @@ describe("agent runtime", () => {
 
   const sendEmailCall = {
     id: "call_1",
-    name: "send_email",
+    name: "GMAIL_SEND_EMAIL",
     arguments: {
       to: "customer@example.test",
       subject: "Your quote",
@@ -215,7 +217,7 @@ describe("agent runtime", () => {
     },
   };
 
-  it("pauses before send_email executes at all — no amount threshold, always gated", async () => {
+  it("pauses before GMAIL_SEND_EMAIL executes at all — no amount threshold, always gated", async () => {
     const provider = scriptedProvider([
       {
         content: "",
@@ -266,9 +268,9 @@ describe("agent runtime", () => {
     const approvalStep = run.steps.find(
       (s) => s.stepType === "APPROVAL_REQUESTED",
     );
-    expect(approvalStep?.detail).toMatch(/send_email.*approval/i);
+    expect(approvalStep?.detail).toMatch(/GMAIL_SEND_EMAIL.*approval/i);
 
-    // send_email must never have actually executed before approval.
+    // GMAIL_SEND_EMAIL must never have actually executed before approval.
     const toolCalls = await prisma.toolCall.findMany({
       where: { agentRunId: result.runId },
     });
@@ -279,13 +281,13 @@ describe("agent runtime", () => {
     });
     expect(approval).toMatchObject({
       status: "PENDING",
-      requestedAction: "send_email",
+      requestedAction: "GMAIL_SEND_EMAIL",
       proposedInput: sendEmailCall.arguments,
       proposedToolCallId: sendEmailCall.id,
     });
   });
 
-  it("resumes and executes send_email only after approval, continuing the same conversation", async () => {
+  it("resumes and executes GMAIL_SEND_EMAIL only after approval, continuing the same conversation", async () => {
     const pauseProvider = scriptedProvider([
       {
         content: "",
@@ -340,15 +342,15 @@ describe("agent runtime", () => {
       "RUN_COMPLETED",
     ]);
 
-    // send_email now genuinely ran (against the real tool, not a mock) —
+    // GMAIL_SEND_EMAIL now genuinely ran (against the real tool, not a mock) —
     // it fails because this test org has no Gmail integration connected,
     // which is itself the correct, realistic outcome to assert: the call
     // only happens post-approval, and a real failure doesn't crash the run.
     const sentToolCall = await prisma.toolCall.findFirst({
-      where: { agentRunId: paused.runId, toolName: "send_email" },
+      where: { agentRunId: paused.runId, toolName: "GMAIL_SEND_EMAIL" },
     });
     expect(sentToolCall).toMatchObject({ status: "FAILED" });
-    expect(sentToolCall?.error).toMatch(/no email account.*is connected/i);
+    expect(sentToolCall?.error).toMatch(/gmail is not connected/i);
 
     const approval = await prisma.approval.findFirst({
       where: { agentRunId: paused.runId },
@@ -359,7 +361,7 @@ describe("agent runtime", () => {
     });
   });
 
-  it("cancels the run when the approver rejects it — send_email never runs", async () => {
+  it("cancels the run when the approver rejects it — GMAIL_SEND_EMAIL never runs", async () => {
     const pauseProvider = scriptedProvider([
       {
         content: "",
@@ -419,11 +421,11 @@ describe("agent runtime", () => {
     // writes its intended call as JSON text in `content` instead of using
     // the provider's tool-calling mechanism. With an empty toolCalls array
     // this used to read as "no more action needed" and mark the run
-    // COMPLETED — even though send_email was never actually invoked.
+    // COMPLETED — even though GMAIL_SEND_EMAIL was never actually invoked.
     const provider = scriptedProvider([
       {
         content:
-          '{"name": "send_email", "arguments": {"to": "customer@example.test", "subject": "Hi", "body": "..."}}',
+          '{"name": "GMAIL_SEND_EMAIL", "arguments": {"to": "customer@example.test", "subject": "Hi", "body": "..."}}',
       },
     ]);
 
@@ -488,7 +490,7 @@ describe("agent runtime", () => {
     const provider = scriptedProvider([
       {
         content:
-          'ค旷, {"name": "send_email", "arguments": {"to": "priya@globex.test", "subject": "Re: your order", "body": "..."}}',
+          'ค旷, {"name": "GMAIL_SEND_EMAIL", "arguments": {"to": "priya@globex.test", "subject": "Re: your order", "body": "..."}}',
       },
     ]);
 

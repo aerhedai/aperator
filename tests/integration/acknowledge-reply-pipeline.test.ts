@@ -68,7 +68,7 @@ describe("acknowledge_reply pipeline", () => {
       },
     });
     await prisma.agentTool.createMany({
-      data: ["find_record", "send_email"].map((toolName) => ({
+      data: ["find_record", "GMAIL_SEND_EMAIL"].map((toolName) => ({
         agentId: caseAgent.id,
         toolName,
       })),
@@ -89,7 +89,7 @@ describe("acknowledge_reply pipeline", () => {
       },
     });
     await prisma.agentTool.createMany({
-      data: ["send_email"].map((toolName) => ({
+      data: ["GMAIL_SEND_EMAIL"].map((toolName) => ({
         agentId: noGuardrailAgent.id,
         toolName,
       })),
@@ -138,7 +138,7 @@ describe("acknowledge_reply pipeline", () => {
       },
     });
     await prisma.agentTool.createMany({
-      data: ["search_records", "send_email"].map((toolName) => ({
+      data: ["search_records", "GMAIL_SEND_EMAIL"].map((toolName) => ({
         agentId: propertyAgent.id,
         toolName,
       })),

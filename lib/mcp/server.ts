@@ -7,11 +7,11 @@ import * as agentRepository from "@/lib/agents/agent-repository";
 import * as integrationRepository from "@/lib/integrations/integration-repository";
 import * as integrationService from "@/lib/integrations/integration-service";
 import type { DiscoveredMcpTool } from "@/lib/integrations/mcp/tool-naming";
-import { createCheckCalendarAvailabilityTool } from "@/lib/mcp/tools/check-calendar-availability";
-import { createCreateCalendarEventTool } from "@/lib/mcp/tools/create-calendar-event";
-import { createCreateFolderTool } from "@/lib/mcp/tools/create-folder";
 import { createCreateRecordTool } from "@/lib/mcp/tools/create-record";
 import { createFindRecordTool } from "@/lib/mcp/tools/find-record";
+import { createGoogleDriveCreateFolderTool } from "@/lib/mcp/tools/google-drive-create-folder";
+import { createGoogleDrivePopulateTemplateTool } from "@/lib/mcp/tools/google-drive-populate-template";
+import { createGoogleDriveSaveFileTool } from "@/lib/mcp/tools/google-drive-save-file";
 import { createInstallTemplateTool } from "@/lib/mcp/tools/install-template";
 import { createInstallWorkflowTemplateTool } from "@/lib/mcp/tools/install-workflow-template";
 import { createInvokeAgentTool } from "@/lib/mcp/tools/invoke-agent";
@@ -19,13 +19,19 @@ import { createListInvokableTool } from "@/lib/mcp/tools/list-invokable";
 import { createInvokeWorkflowTool } from "@/lib/mcp/tools/invoke-workflow";
 import { createListTemplatesTool } from "@/lib/mcp/tools/list-templates";
 import { createMcpProxyTool } from "@/lib/mcp/tools/mcp-proxy-tool";
-import { createNotifyChannelTool } from "@/lib/mcp/tools/notify-channel";
-import { createPopulateTemplateTool } from "@/lib/mcp/tools/populate-template";
-import { createSaveFileTool } from "@/lib/mcp/tools/save-file";
+import { createOutlookCheckCalendarAvailabilityTool } from "@/lib/mcp/tools/outlook-check-calendar-availability";
+import { createOutlookCreateCalendarEventTool } from "@/lib/mcp/tools/outlook-create-calendar-event";
+import { createGmailReadInboxTool } from "@/lib/mcp/tools/gmail-read-inbox";
+import { createGmailSendEmailTool } from "@/lib/mcp/tools/gmail-send-email";
+import { createOutlookReadInboxTool } from "@/lib/mcp/tools/outlook-read-inbox";
+import { createOutlookSendEmailTool } from "@/lib/mcp/tools/outlook-send-email";
 import { createSearchKnowledgeTool } from "@/lib/mcp/tools/search-knowledge";
 import { createSearchRecordsTool } from "@/lib/mcp/tools/search-records";
-import { createReadInboxTool } from "@/lib/mcp/tools/read-inbox";
-import { createSendEmailTool } from "@/lib/mcp/tools/send-email";
+import { createSharePointCreateFolderTool } from "@/lib/mcp/tools/sharepoint-create-folder";
+import { createSharePointPopulateTemplateTool } from "@/lib/mcp/tools/sharepoint-populate-template";
+import { createSharePointSaveFileTool } from "@/lib/mcp/tools/sharepoint-save-file";
+import { createSlackPostMessageTool } from "@/lib/mcp/tools/slack-post-message";
+import { createTeamsPostMessageTool } from "@/lib/mcp/tools/teams-post-message";
 import { createUpdateRecordTool } from "@/lib/mcp/tools/update-record";
 import * as workflowService from "@/lib/workflows/workflow-service";
 
@@ -64,13 +70,11 @@ interface ToolDefinition<
  *
  * An agent's actionIntegrationId is a single field shared across all of
  * its granted action tools, but a pinned account only ever belongs to one
- * provider (e.g. a Gmail address) — forwarding it unconditionally into
- * every action tool would make notify_channel hard-error ("not a Slack
- * account") for an agent pinned to Gmail, or vice versa. Resolved once
- * here and only forwarded into the tool(s) whose own provider matches;
- * otherwise undefined, so that tool falls back to its own provider's
- * organisation default instead of failing. send_email is provider-agnostic
- * across Gmail/Outlook, so it matches either.
+ * provider (e.g. a Gmail address) — every provider-specific tool
+ * (GMAIL_SEND_EMAIL, SLACK_POST_MESSAGE, ...) only ever needs the pin
+ * forwarded when it's actually that tool's own provider; otherwise
+ * undefined, so the tool falls back to its provider's organisation default
+ * instead of receiving a pin that belongs to a different provider entirely.
  *
  * callerAgentId identifies which agent this server instance's calls are
  * made on behalf of — invoke_agent is the one tool that needs to know who
@@ -104,7 +108,8 @@ export async function createMcpServer(
   const pinnedFor = (...providers: string[]) =>
     provider && providers.includes(provider) ? actionIntegrationId : undefined;
 
-  const emailId = pinnedFor("gmail", "outlook");
+  const gmailId = pinnedFor("gmail");
+  const outlookId = pinnedFor("outlook");
   const slackId = pinnedFor("slack");
   const teamsId = pinnedFor("teams");
   const calendarId = pinnedFor("outlook-calendar");
@@ -149,22 +154,36 @@ export async function createMcpServer(
   register(createCreateRecordTool(organisationId));
   register(createUpdateRecordTool(organisationId));
 
-  // Communicate
-  register(createReadInboxTool(organisationId, emailId), readOnly);
-  register(createSendEmailTool(organisationId, emailId));
-  register(createNotifyChannelTool(organisationId, slackId, teamsId));
+  // Gmail
+  register(createGmailReadInboxTool(organisationId, gmailId), readOnly);
+  register(createGmailSendEmailTool(organisationId, gmailId));
 
-  // Calendar
+  // Outlook
+  register(createOutlookReadInboxTool(organisationId, outlookId), readOnly);
+  register(createOutlookSendEmailTool(organisationId, outlookId));
+
+  // Slack
+  register(createSlackPostMessageTool(organisationId, slackId));
+
+  // Teams
+  register(createTeamsPostMessageTool(organisationId, teamsId));
+
+  // Outlook Calendar
   register(
-    createCheckCalendarAvailabilityTool(organisationId, calendarId),
+    createOutlookCheckCalendarAvailabilityTool(organisationId, calendarId),
     readOnly,
   );
-  register(createCreateCalendarEventTool(organisationId, calendarId));
+  register(createOutlookCreateCalendarEventTool(organisationId, calendarId));
 
-  // Files
-  register(createCreateFolderTool(organisationId));
-  register(createSaveFileTool(organisationId));
-  register(createPopulateTemplateTool(organisationId));
+  // Google Drive
+  register(createGoogleDriveCreateFolderTool(organisationId));
+  register(createGoogleDriveSaveFileTool(organisationId));
+  register(createGoogleDrivePopulateTemplateTool(organisationId));
+
+  // SharePoint
+  register(createSharePointCreateFolderTool(organisationId));
+  register(createSharePointSaveFileTool(organisationId));
+  register(createSharePointPopulateTemplateTool(organisationId));
 
   // Orchestration — list_invokable first: it re-queries live at call time
   // (unlike invoke_agent/invoke_workflow's own descriptions below, which

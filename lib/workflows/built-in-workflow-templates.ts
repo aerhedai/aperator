@@ -101,7 +101,12 @@ export const BUILT_IN_WORKFLOW_TEMPLATES: BuiltInWorkflowTemplate[] = [
         categoryType: "quote",
         instructions:
           "A customer is asking for a price quote. Extract the product and quantity, look up the customer and product, calculate the total, then send the quote by email.",
-        suggestedTools: ["find_record", "search_records", "send_email"],
+        suggestedTools: [
+          "find_record",
+          "search_records",
+          "GMAIL_SEND_EMAIL",
+          "OUTLOOK_SEND_EMAIL",
+        ],
         keywords: DEFAULT_QUOTE_KEYWORDS,
       },
     ],
@@ -121,7 +126,11 @@ export const BUILT_IN_WORKFLOW_TEMPLATES: BuiltInWorkflowTemplate[] = [
         categoryType: "acknowledge_reply",
         instructions:
           "A customer has a complaint. Acknowledge their concern specifically, never promise compensation, and let them know a team member will follow up.",
-        suggestedTools: ["find_record", "send_email"],
+        suggestedTools: [
+          "find_record",
+          "GMAIL_SEND_EMAIL",
+          "OUTLOOK_SEND_EMAIL",
+        ],
         keywords: DEFAULT_COMPLAINTS_KEYWORDS,
         extractionFields: DEFAULT_COMPLAINTS_EXTRACTION_FIELDS,
         guardrailKeywords: DEFAULT_COMPLAINTS_GUARDRAIL_KEYWORDS,
@@ -133,7 +142,11 @@ export const BUILT_IN_WORKFLOW_TEMPLATES: BuiltInWorkflowTemplate[] = [
         categoryType: "acknowledge_reply",
         instructions:
           "Answer the inquiry helpfully and directly. If there isn't enough information to answer accurately, say so rather than guessing.",
-        suggestedTools: ["find_record", "send_email"],
+        suggestedTools: [
+          "find_record",
+          "GMAIL_SEND_EMAIL",
+          "OUTLOOK_SEND_EMAIL",
+        ],
         keywords: [],
         extractionFields: DEFAULT_GENERAL_EXTRACTION_FIELDS,
       },
@@ -157,11 +170,12 @@ export const BUILT_IN_WORKFLOW_TEMPLATES: BuiltInWorkflowTemplate[] = [
         // real tool-calling loop, not a workaround.
         categoryType: "loop",
         instructions:
-          "Help schedule a meeting or call. Extract who wants to meet, with whom, and roughly when. Use check_calendar_availability to find real open slots before proposing a time — never invent availability. Once a specific time is agreed, use create_calendar_event to book it and invite the attendees. If you can't find a suitable time, say so plainly rather than guessing.",
+          "Help schedule a meeting or call. Extract who wants to meet, with whom, and roughly when. Use OUTLOOK_CHECK_CALENDAR_AVAILABILITY to find real open slots before proposing a time — never invent availability. Once a specific time is agreed, use OUTLOOK_CREATE_CALENDAR_EVENT to book it and invite the attendees. If you can't find a suitable time, say so plainly rather than guessing.",
         suggestedTools: [
-          "check_calendar_availability",
-          "create_calendar_event",
-          "send_email",
+          "OUTLOOK_CHECK_CALENDAR_AVAILABILITY",
+          "OUTLOOK_CREATE_CALENDAR_EVENT",
+          "GMAIL_SEND_EMAIL",
+          "OUTLOOK_SEND_EMAIL",
         ],
         keywords: ["meeting", "call", "schedule a time", "calendar invite"],
       },
@@ -179,7 +193,8 @@ export const BUILT_IN_WORKFLOW_TEMPLATES: BuiltInWorkflowTemplate[] = [
           "find_record",
           "create_record",
           "update_record",
-          "send_email",
+          "GMAIL_SEND_EMAIL",
+          "OUTLOOK_SEND_EMAIL",
         ],
         keywords: ["booking", "reservation", "confirm my order"],
       },
@@ -199,7 +214,7 @@ export const BUILT_IN_WORKFLOW_TEMPLATES: BuiltInWorkflowTemplate[] = [
           "Fills a .docx template with the request's details and saves it to connected storage. Edit templatePath/outputPath below to point at your own template file.",
         categoryType: "steps",
         instructions: "",
-        suggestedTools: ["populate_template"],
+        suggestedTools: ["GOOGLE_DRIVE_POPULATE_TEMPLATE"],
         keywords: ["document", "letter", "certificate", "generate"],
         steps: {
           steps: [
@@ -223,9 +238,8 @@ export const BUILT_IN_WORKFLOW_TEMPLATES: BuiltInWorkflowTemplate[] = [
             },
             {
               kind: "act",
-              tool: "populate_template",
+              tool: "GOOGLE_DRIVE_POPULATE_TEMPLATE",
               args: {
-                provider: "google-drive",
                 templatePath: ["Templates", "document-template.docx"],
                 outputPath: ["Generated Documents"],
                 outputFilename: "{referenceNumber}.docx",
@@ -289,7 +303,7 @@ export const BUILT_IN_WORKFLOW_TEMPLATES: BuiltInWorkflowTemplate[] = [
           "Looks a question up in the business's own documented policies and procedures, then answers using only what was found. The catch-all for anything that isn't clearly urgent.",
         categoryType: "steps",
         instructions: "",
-        suggestedTools: ["search_knowledge", "send_email"],
+        suggestedTools: ["search_knowledge", "GMAIL_SEND_EMAIL"],
         // No keywords — try to answer from documented knowledge before
         // ever escalating to a human.
         keywords: [],
@@ -314,7 +328,12 @@ export const BUILT_IN_WORKFLOW_TEMPLATES: BuiltInWorkflowTemplate[] = [
             },
             {
               kind: "act",
-              tool: "send_email",
+              // Defaults to Gmail — a step's tool must be a real,
+              // already-registered name, so it can't resolve dynamically
+              // the way Agent.actionTool does (see built-in-templates.ts's
+              // own comment on this). Edit to OUTLOOK_SEND_EMAIL after
+              // installing if this business uses Outlook instead.
+              tool: "GMAIL_SEND_EMAIL",
               args: {
                 to: "{senderEmail}",
                 subject: "Re: your question",
@@ -330,7 +349,7 @@ export const BUILT_IN_WORKFLOW_TEMPLATES: BuiltInWorkflowTemplate[] = [
           "Summarises something that needs a human's attention and posts it to your team's Slack or Teams channel. Edit the channel below to point at your own.",
         categoryType: "steps",
         instructions: "",
-        suggestedTools: ["notify_channel"],
+        suggestedTools: ["SLACK_POST_MESSAGE"],
         keywords: ["urgent", "escalate", "speak to someone", "need a person"],
         steps: {
           steps: [
@@ -346,9 +365,8 @@ export const BUILT_IN_WORKFLOW_TEMPLATES: BuiltInWorkflowTemplate[] = [
             },
             {
               kind: "act",
-              tool: "notify_channel",
+              tool: "SLACK_POST_MESSAGE",
               args: {
-                platform: "slack",
                 channel: "#general",
                 message: "Needs attention: {summary}",
               },
@@ -376,7 +394,11 @@ export const BUILT_IN_WORKFLOW_TEMPLATES: BuiltInWorkflowTemplate[] = [
         categoryType: "loop",
         instructions:
           "A new customer needs setting up. Extract their name, email, and company if mentioned. Create a Customer record with those details, then send them a short, friendly welcome email confirming they're set up.",
-        suggestedTools: ["create_record", "send_email"],
+        suggestedTools: [
+          "create_record",
+          "GMAIL_SEND_EMAIL",
+          "OUTLOOK_SEND_EMAIL",
+        ],
         keywords: ["new customer", "sign up", "sign me up", "get started"],
       },
       {
@@ -388,7 +410,12 @@ export const BUILT_IN_WORKFLOW_TEMPLATES: BuiltInWorkflowTemplate[] = [
         categoryType: "loop",
         instructions:
           "A new employee is starting. Extract their name and start date if mentioned. Create a folder for them in shared storage, then post a notification to the team channel letting them know who's starting and when.",
-        suggestedTools: ["create_folder", "notify_channel"],
+        suggestedTools: [
+          "GOOGLE_DRIVE_CREATE_FOLDER",
+          "SHAREPOINT_CREATE_FOLDER",
+          "SLACK_POST_MESSAGE",
+          "TEAMS_POST_MESSAGE",
+        ],
         keywords: [
           "new employee",
           "new hire",

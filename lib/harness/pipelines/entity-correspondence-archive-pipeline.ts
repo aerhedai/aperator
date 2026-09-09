@@ -3,7 +3,27 @@ import { z } from "zod";
 import { completePipeline } from "@/lib/harness/pipeline-completion";
 import { failPipeline } from "@/lib/harness/pipeline-failure";
 import { callTool } from "@/lib/harness/pipeline-helpers";
-import type { Pipeline } from "@/lib/harness/types";
+import type { PipelineContext, Pipeline } from "@/lib/harness/types";
+
+// Both save calls below need this exact branch — a small local helper
+// rather than duplicating it, not a new shared abstraction beyond this
+// one file's own use of it.
+function saveFile(
+  context: PipelineContext,
+  provider: "google-drive" | "sharepoint",
+  siteName: string | undefined,
+  args: {
+    path: string[];
+    filename: string;
+    mimeType: string;
+    contentBase64: string;
+    replace: boolean;
+  },
+) {
+  return provider === "google-drive"
+    ? callTool(context, "GOOGLE_DRIVE_SAVE_FILE", args)
+    : callTool(context, "SHAREPOINT_SAVE_FILE", { ...args, siteName });
+}
 
 // Agent.pipelineConfig's shape for this pipeline. A business points this
 // at a mailbox that only ever receives replies to something it already
@@ -103,9 +123,7 @@ export const runEntityCorrespondenceArchivePipeline: Pipeline = async (
       ? rootFolderValue
       : keyValue;
 
-  const bodySave = await callTool(context, "save_file", {
-    provider: config.provider,
-    siteName: config.siteName,
+  const bodySave = await saveFile(context, config.provider, config.siteName, {
     path: [root, config.correspondenceSubfolder],
     filename: config.correspondenceFilename,
     mimeType: "text/plain",
@@ -120,15 +138,18 @@ export const runEntityCorrespondenceArchivePipeline: Pipeline = async (
     ? await context.getAttachments()
     : [];
   for (const attachment of attachments) {
-    const attachmentSave = await callTool(context, "save_file", {
-      provider: config.provider,
-      siteName: config.siteName,
-      path: [root, config.correspondenceSubfolder],
-      filename: attachment.filename,
-      mimeType: attachment.mimeType,
-      contentBase64: attachment.content.toString("base64"),
-      replace: false,
-    });
+    const attachmentSave = await saveFile(
+      context,
+      config.provider,
+      config.siteName,
+      {
+        path: [root, config.correspondenceSubfolder],
+        filename: attachment.filename,
+        mimeType: attachment.mimeType,
+        contentBase64: attachment.content.toString("base64"),
+        replace: false,
+      },
+    );
     if (attachmentSave.isError) {
       return failPipeline(
         context,

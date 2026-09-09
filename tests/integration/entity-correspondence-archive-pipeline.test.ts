@@ -38,7 +38,7 @@ describe("entity_correspondence_archive pipeline", () => {
         pipelineConfig: overrides.pipelineConfig as never,
       },
     });
-    const tools = overrides.tools ?? ["find_record", "save_file"];
+    const tools = overrides.tools ?? ["find_record", "GOOGLE_DRIVE_SAVE_FILE"];
     await prisma.agentTool.createMany({
       data: tools.map((toolName) => ({ agentId: agent.id, toolName })),
     });
@@ -198,14 +198,16 @@ describe("entity_correspondence_archive pipeline", () => {
       include: { steps: { include: { toolCall: true } } },
     });
     const saveCall = run.steps.find(
-      (s) => s.toolCall?.toolName === "save_file",
+      (s) => s.toolCall?.toolName === "GOOGLE_DRIVE_SAVE_FILE",
     );
     expect(saveCall?.toolCall?.status).toBe("FAILED");
     expect(saveCall?.toolCall?.error).toMatch(/google drive is not connected/i);
     // Never got as far as reading attachments, since the body save itself
     // already failed.
     expect(
-      run.steps.filter((s) => s.toolCall?.toolName === "save_file"),
+      run.steps.filter(
+        (s) => s.toolCall?.toolName === "GOOGLE_DRIVE_SAVE_FILE",
+      ),
     ).toHaveLength(1);
   });
 
@@ -228,7 +230,7 @@ describe("entity_correspondence_archive pipeline", () => {
       include: { steps: { include: { toolCall: true } } },
     });
     const saveCall = run.steps.find(
-      (s) => s.toolCall?.toolName === "save_file",
+      (s) => s.toolCall?.toolName === "GOOGLE_DRIVE_SAVE_FILE",
     );
     expect(saveCall?.toolCall?.error).toMatch(/does not have access/i);
   });
@@ -260,7 +262,7 @@ describe("entity_correspondence_archive pipeline", () => {
       include: { steps: { include: { toolCall: true } } },
     });
     const saveCall = run.steps.find(
-      (s) => s.toolCall?.toolName === "save_file",
+      (s) => s.toolCall?.toolName === "GOOGLE_DRIVE_SAVE_FILE",
     );
     expect(saveCall?.toolCall?.error).toMatch(/google drive is not connected/i);
   });

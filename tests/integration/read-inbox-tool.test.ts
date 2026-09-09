@@ -41,7 +41,7 @@ function gmailMessagePayload(opts: {
   };
 }
 
-describe("read_inbox tool", () => {
+describe("GMAIL_READ_INBOX tool", () => {
   const organisationId = "test-org-read-inbox";
 
   beforeEach(async () => {
@@ -106,7 +106,7 @@ describe("read_inbox tool", () => {
     ]);
 
     const result = await client.callTool({
-      name: "read_inbox",
+      name: "GMAIL_READ_INBOX",
       arguments: {},
     });
 
@@ -138,7 +138,7 @@ describe("read_inbox tool", () => {
     ]);
 
     const result = await client.callTool({
-      name: "read_inbox",
+      name: "GMAIL_READ_INBOX",
       arguments: {},
     });
 
@@ -146,7 +146,7 @@ describe("read_inbox tool", () => {
     expect(result.content).toEqual([
       {
         type: "text",
-        text: expect.stringContaining("No email account"),
+        text: expect.stringContaining("Gmail is not connected"),
       },
     ]);
 
@@ -188,7 +188,7 @@ describe("read_inbox tool", () => {
     ]);
 
     const result = await client.callTool({
-      name: "read_inbox",
+      name: "GMAIL_READ_INBOX",
       arguments: {},
     });
     expect(result.isError).toBeFalsy();
