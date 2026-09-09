@@ -1,4 +1,6 @@
+import { installAgentSpec } from "@/lib/agents/agent-spec-install";
 import { BUILT_IN_TEMPLATES } from "@/lib/agents/built-in-templates";
+import type { CategoryType } from "@/lib/agents/schemas";
 import { prisma } from "@/lib/db/prisma";
 import { stepProgrammeSchema } from "@/lib/harness/steps/schema";
 
@@ -14,6 +16,8 @@ export interface TemplateSummary {
   id: string;
   name: string;
   description: string;
+  categoryType: string;
+  instructions: string;
   steps: unknown;
   suggestedTools: string[];
   builtIn: boolean;
@@ -50,10 +54,76 @@ export async function listTemplates(
     id: row.id,
     name: row.name,
     description: row.description,
+    categoryType: row.categoryType,
+    instructions: row.instructions,
     steps: row.steps,
     suggestedTools: row.suggestedTools,
     builtIn: row.organisationId === null,
   }));
+}
+
+// Org-scoped single lookup, same visibility rule as listTemplates (a
+// built-in or one of this organisation's own) — used by the real
+// one-click install action, which only ever needs one row, not the whole
+// list.
+export async function getTemplate(
+  organisationId: string,
+  id: string,
+): Promise<TemplateSummary | null> {
+  const row = await prisma.agentTemplate.findFirst({
+    where: { id, OR: [{ organisationId: null }, { organisationId }] },
+  });
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    categoryType: row.categoryType,
+    instructions: row.instructions,
+    steps: row.steps,
+    suggestedTools: row.suggestedTools,
+    builtIn: row.organisationId === null,
+  };
+}
+
+export type InstallTemplateResult =
+  | { ok: true; agentId: string; agentName: string }
+  | { ok: false; error: string };
+
+/**
+ * The one real "install" path — shared by the /templates page's Install
+ * button (app/(shell)/(app)/agents/actions.ts) and the install_template
+ * tool (lib/mcp/tools/install-template.ts), so a business clicking a
+ * button and chat acting on its own initiative produce identical agents
+ * through identical validation, not two versions of "install" that could
+ * quietly drift apart.
+ *
+ * Delegates to installAgentSpec (lib/agents/agent-spec-install.ts) — the
+ * same validation and creation path a hand-built agent goes through, and
+ * the same one installWorkflowTemplate uses for each handler/classifier it
+ * installs, so a lone template and a workflow template's members are never
+ * two different notions of "install." The created agent is DRAFT, same as
+ * any hand-built one — installing a template, whether by a human or by
+ * chat on a business's behalf, is still a starting point that gets
+ * reviewed before it does anything, not a live action in itself.
+ */
+export async function installTemplate(
+  organisationId: string,
+  templateId: string,
+): Promise<InstallTemplateResult> {
+  const template = await getTemplate(organisationId, templateId);
+  if (!template) {
+    return { ok: false, error: "Template not found." };
+  }
+
+  return installAgentSpec(organisationId, {
+    name: template.name,
+    description: template.description,
+    instructions: template.instructions,
+    categoryType: template.categoryType as CategoryType,
+    suggestedTools: template.suggestedTools,
+    steps: template.steps,
+  });
 }
 
 export async function saveTemplate(
@@ -111,6 +181,8 @@ export async function seedBuiltInTemplates(): Promise<number> {
     const data = {
       name: template.name,
       description: template.description,
+      categoryType: template.categoryType ?? "steps",
+      instructions: template.instructions ?? "",
       steps: template.steps as object,
       suggestedTools: template.suggestedTools,
     };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cleanEmailBody } from "@/lib/integrations/gmail/clean-email-body";
+import { cleanEmailBody } from "@/lib/integrations/shared/clean-email-body";
 
 describe("cleanEmailBody", () => {
   it("strips a signature after a standalone -- delimiter", () => {

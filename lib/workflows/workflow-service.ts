@@ -18,6 +18,10 @@ import * as workflowRepository from "@/lib/workflows/workflow-repository";
 const TRIGGER_INTEGRATION_PROVIDERS: Record<WorkflowTriggerType, string[]> = {
   EMAIL: [...EMAIL_TRIGGER_PROVIDERS],
   WEBHOOK: ["webhook"],
+  // No connected account is ever valid here — a MANUAL workflow (only
+  // ever created by installWorkflowTemplate) is reached by id, never by
+  // an inbound account-bound event.
+  MANUAL: [],
 };
 const TRIGGERS_REQUIRING_ACCOUNT: WorkflowTriggerType[] = ["WEBHOOK"];
 
@@ -200,12 +204,19 @@ export async function activateWorkflow(
     );
   }
 
-  await workflowRepository.deactivateOtherWorkflowsForTrigger(
-    organisationId,
-    workflow.trigger,
-    workflow.triggerIntegrationId,
-    workflowId,
-  );
+  // MANUAL workflows don't compete for a trigger slot — nothing ever
+  // dispatches to them by (trigger, account), only by id (invoke_workflow),
+  // so any number of them may be ACTIVE at once. Only EMAIL/WEBHOOK, where
+  // a real inbound event needs exactly one deterministic recipient, ever
+  // need the swap below.
+  if (workflow.trigger !== "MANUAL") {
+    await workflowRepository.deactivateOtherWorkflowsForTrigger(
+      organisationId,
+      workflow.trigger,
+      workflow.triggerIntegrationId,
+      workflowId,
+    );
+  }
   return workflowRepository.setWorkflowStatus(workflowId, "ACTIVE");
 }
 

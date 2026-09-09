@@ -4,7 +4,7 @@ import { env } from "@/lib/env";
 import { completePipeline } from "@/lib/harness/pipeline-completion";
 import { failPipeline } from "@/lib/harness/pipeline-failure";
 import { callTool } from "@/lib/harness/pipeline-helpers";
-import { proposeAction } from "@/lib/harness/propose-action";
+import { proposeAction, resolveActionTool } from "@/lib/harness/propose-action";
 import type { Pipeline } from "@/lib/harness/types";
 
 // Agent.pipelineConfig's shape for this pipeline — validated here, not in
@@ -177,11 +177,13 @@ export const runEntityStatusSignalPipeline: Pipeline = async (context) => {
     const paths =
       subfolders.length > 0 ? subfolders.map((sub) => [root, sub]) : [[root]];
     for (const path of paths) {
-      const folderResult = await callTool(context, "create_folder", {
-        provider,
-        siteName,
-        path,
-      });
+      const folderResult =
+        provider === "google-drive"
+          ? await callTool(context, "GOOGLE_DRIVE_CREATE_FOLDER", { path })
+          : await callTool(context, "SHAREPOINT_CREATE_FOLDER", {
+              siteName,
+              path,
+            });
       if (folderResult.isError) {
         return failPipeline(
           context,
@@ -193,8 +195,7 @@ export const runEntityStatusSignalPipeline: Pipeline = async (context) => {
 
   if (transition.notifyTeams) {
     const { teamId, channelId, messageTemplate } = transition.notifyTeams;
-    const notifyResult = await callTool(context, "notify_channel", {
-      platform: "teams",
+    const notifyResult = await callTool(context, "TEAMS_POST_MESSAGE", {
       teamId,
       channel: channelId,
       message: interpolate(messageTemplate, templateData),
@@ -214,7 +215,11 @@ export const runEntityStatusSignalPipeline: Pipeline = async (context) => {
       );
     }
     return proposeAction(context, {
-      toolName: context.agent.actionTool,
+      toolName: await resolveActionTool(
+        context.agent.actionTool,
+        context.organisationId,
+        context.agent.actionIntegrationId,
+      ),
       args: {
         to,
         subject: interpolate(subjectTemplate, templateData),

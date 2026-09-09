@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+
 import {
   CalendarClock,
   FolderOpen,
@@ -10,13 +14,28 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { INTEGRATION_REGISTRY } from "@/lib/integrations/integration-registry";
 import { cn } from "@/lib/utils";
 
-// No real logo assets exist for any of these (no public/ directory in this
-// repo, and copying third-party trademarked logo files in isn't something
-// to do without the business's own brand agreements) — a colored icon
-// tile is the pragmatic stand-in: enough to visually distinguish cards at
-// a glance, paired with the label text for actual identification.
+// Real logo SVGs live in public/integrations/, dropped in by hand from
+// each provider's own brand kit — lowercase filename, underscore between
+// words (google_drive.svg) — and matched here against the provider slug
+// rather than a filesystem read, since this component renders on the
+// client. A provider with no entry, or whose file 404s (not dropped in
+// yet), falls back to the colored Lucide tile below.
+const LOGO_FILENAMES: Record<string, string> = {
+  gmail: "gmail.svg",
+  slack: "slack.svg",
+  outlook: "outlook.svg",
+  teams: "teams.svg",
+  "outlook-calendar": "outlook_calendar.svg",
+  "google-drive": "google_drive.svg",
+  sharepoint: "sharepoint.svg",
+};
+
+// Fallback for a provider with no logo file (yet), or whose logo failed
+// to load — enough to visually distinguish cards at a glance, paired with
+// the label text for actual identification.
 const ICONS: Record<string, { Icon: LucideIcon; className: string }> = {
   gmail: {
     Icon: Mail,
@@ -53,6 +72,28 @@ const ICONS: Record<string, { Icon: LucideIcon; className: string }> = {
 };
 
 export function IntegrationIcon({ provider }: { provider: string }) {
+  const [logoFailed, setLogoFailed] = useState(false);
+  const logoFilename = LOGO_FILENAMES[provider];
+
+  if (logoFilename && !logoFailed) {
+    const label =
+      INTEGRATION_REGISTRY.find((entry) => entry.provider === provider)
+        ?.label ?? provider;
+    return (
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted p-2">
+        {/* eslint-disable-next-line @next/next/no-img-element -- next/image
+            doesn't optimize SVGs anyway, and these are small fixed-size
+            local files, not something worth its config surface. */}
+        <img
+          src={`/integrations/${logoFilename}`}
+          alt={`${label} logo`}
+          className="size-full object-contain"
+          onError={() => setLogoFailed(true)}
+        />
+      </div>
+    );
+  }
+
   const { Icon, className } = ICONS[provider] ?? {
     Icon: Webhook,
     className: "bg-muted text-muted-foreground",

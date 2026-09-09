@@ -72,10 +72,15 @@ describe("MCP tool server", () => {
     await prisma.customEntityRecord.deleteMany({ where: { organisationId } });
     await prisma.customEntityType.deleteMany({ where: { organisationId } });
     await prisma.integration.deleteMany({ where: { organisationId } });
+    // Only this organisation's own agents — built-in AgentTemplate rows
+    // (organisationId: null) are a shared, global fixture other tests
+    // also rely on and must never be touched here.
+    await prisma.agentTool.deleteMany({ where: { agent: { organisationId } } });
+    await prisma.agent.deleteMany({ where: { organisationId } });
     await prisma.organisation.deleteMany({ where: { id: organisationId } });
   });
 
-  it("lists exactly the thirteen registered tools", async () => {
+  it("lists exactly the twenty-five registered tools", async () => {
     const { tools } = await client.listTools();
     const names = tools.map((tool) => tool.name).sort();
 
@@ -83,20 +88,105 @@ describe("MCP tool server", () => {
     // small and fixed, and a tool appearing here that nobody deliberately
     // added is the failure this catches (CLAUDE.md §4.5).
     expect(names).toEqual([
-      "check_calendar_availability",
-      "create_calendar_event",
-      "create_folder",
+      "GMAIL_READ_INBOX",
+      "GMAIL_SEND_EMAIL",
+      "GOOGLE_DRIVE_CREATE_FOLDER",
+      "GOOGLE_DRIVE_POPULATE_TEMPLATE",
+      "GOOGLE_DRIVE_SAVE_FILE",
+      "OUTLOOK_CHECK_CALENDAR_AVAILABILITY",
+      "OUTLOOK_CREATE_CALENDAR_EVENT",
+      "OUTLOOK_READ_INBOX",
+      "OUTLOOK_SEND_EMAIL",
+      "SHAREPOINT_CREATE_FOLDER",
+      "SHAREPOINT_POPULATE_TEMPLATE",
+      "SHAREPOINT_SAVE_FILE",
+      "SLACK_POST_MESSAGE",
+      "TEAMS_POST_MESSAGE",
       "create_record",
       "find_record",
+      "install_template",
+      "install_workflow_template",
       "invoke_agent",
-      "notify_channel",
-      "populate_template",
-      "save_file",
+      "invoke_workflow",
+      "list_invokable",
+      "list_templates",
       "search_knowledge",
       "search_records",
-      "send_email",
       "update_record",
     ]);
+  });
+
+  it("list_templates returns the seeded built-in templates", async () => {
+    const result = await client.callTool({
+      name: "list_templates",
+      arguments: {},
+    });
+
+    expect(result.isError).toBeFalsy();
+    const templates = (
+      result.structuredContent as { templates: { name: string }[] }
+    ).templates;
+    expect(templates.map((t) => t.name)).toContain("Look up and quote");
+  });
+
+  it("install_template creates a real, draft agent with the template's own tools", async () => {
+    const listed = await client.callTool({
+      name: "list_templates",
+      arguments: {},
+    });
+    const templates = (
+      listed.structuredContent as {
+        templates: { id: string; name: string; suggestedTools: string[] }[];
+      }
+    ).templates;
+    const quoteTemplate = templates.find((t) => t.name === "Look up and quote");
+    if (!quoteTemplate) throw new Error("fixture template not found");
+
+    const result = await client.callTool({
+      name: "install_template",
+      arguments: { templateId: quoteTemplate.id },
+    });
+
+    expect(result.isError).toBeFalsy();
+    const { agentId, agentName } = result.structuredContent as {
+      agentId: string;
+      agentName: string;
+    };
+    expect(agentName).toBe("Look up and quote");
+
+    const agent = await prisma.agent.findUnique({
+      where: { id: agentId },
+      include: { tools: true },
+    });
+    expect(agent).toMatchObject({
+      organisationId,
+      status: "DRAFT",
+      executionMode: "HARNESS",
+      pipelineKey: "steps",
+      // The whole point of pairing this with the default-allow invocation
+      // model — installed by chat or by a human, it's callable immediately.
+      chatInvokable: true,
+    });
+    expect(agent?.tools.map((t) => t.toolName).sort()).toEqual(
+      [...quoteTemplate.suggestedTools].sort(),
+    );
+  });
+
+  it("install_template fails clearly for an unknown template id, creating nothing", async () => {
+    const before = await prisma.agent.count({ where: { organisationId } });
+
+    const result = await client.callTool({
+      name: "install_template",
+      arguments: { templateId: "not-a-real-template-id" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content).toEqual([
+      { type: "text", text: expect.stringContaining("not found") },
+    ]);
+
+    const after = await prisma.agent.count({ where: { organisationId } });
+    expect(after).toBe(before);
   });
 
   it("find_record reaches the built-in Customer type by an exact field match", async () => {
@@ -238,9 +328,9 @@ describe("MCP tool server", () => {
     expect(result.isError).toBe(true);
   });
 
-  it("send_email reports a tool error when no email account is connected for the organisation", async () => {
+  it("GMAIL_SEND_EMAIL reports a tool error when Gmail isn't connected for the organisation", async () => {
     const result = await client.callTool({
-      name: "send_email",
+      name: "GMAIL_SEND_EMAIL",
       arguments: {
         to: "buyer@customer-abc.test",
         subject: "Your quote",
@@ -252,18 +342,18 @@ describe("MCP tool server", () => {
     expect(result.content).toMatchObject([
       {
         type: "text",
-        text: expect.stringContaining("No email account (Gmail or Outlook)"),
+        text: expect.stringContaining("Gmail is not connected"),
       },
     ]);
   });
 
-  it("send_email is scoped to the organisation the server was constructed for, not any org the LLM names", async () => {
+  it("GMAIL_SEND_EMAIL is scoped to the organisation the server was constructed for, not any org the LLM names", async () => {
     // Confirms organisationId can't be smuggled in via tool arguments (the
     // Zod input schema doesn't even accept one) — it's bound at server
     // construction, so a malicious/confused LLM has no channel to target
     // another organisation's email credentials (CLAUDE.md #22).
     const result = await client.callTool({
-      name: "send_email",
+      name: "GMAIL_SEND_EMAIL",
       arguments: {
         to: "buyer@customer-abc.test",
         subject: "Your quote",
@@ -276,49 +366,14 @@ describe("MCP tool server", () => {
     expect(result.content).toMatchObject([
       {
         type: "text",
-        text: expect.stringContaining("No email account (Gmail or Outlook)"),
+        text: expect.stringContaining("Gmail is not connected"),
       },
     ]);
   });
 
-  it("send_email uses Outlook when only Outlook is connected", async () => {
-    await integrationService.connectOAuthAccount(organisationId, "outlook", {
-      accountName: "sales@acme.test",
-      config: { email: "sales@acme.test" },
-      credentials: {
-        accessToken: "access-outlook",
-        refreshToken: "refresh-outlook",
-      },
-      expiresAt: new Date(Date.now() + 3600_000),
-    });
-    const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    const result = await client.callTool({
-      name: "send_email",
-      arguments: {
-        to: "buyer@customer-abc.test",
-        subject: "Your quote",
-        body: "£7,500 for 500 units of Product A.",
-      },
-    });
-
-    expect(result.isError).toBeFalsy();
-    expect(result.structuredContent).toEqual({ sent: true });
-  });
-
-  it("send_email picks the earliest-connected account when both Gmail and Outlook are connected, not Gmail by default", async () => {
-    // Outlook connected first — must still win, proving there's no
-    // hardcoded "Gmail always wins" priority.
-    await integrationService.connectOAuthAccount(organisationId, "outlook", {
-      accountName: "outlook@acme.test",
-      config: { email: "outlook@acme.test" },
-      credentials: {
-        accessToken: "access-outlook",
-        refreshToken: "refresh-outlook",
-      },
-      expiresAt: new Date(Date.now() + 3600_000),
-    });
+  it("OUTLOOK_SEND_EMAIL reports a tool error when Outlook isn't connected, even if Gmail is", async () => {
+    // Proves the two are genuinely independent tools now — connecting
+    // Gmail must never make OUTLOOK_SEND_EMAIL silently work.
     await integrationService.connectGmailAccount(
       organisationId,
       "gmail@acme.test",
@@ -328,11 +383,41 @@ describe("MCP tool server", () => {
         expiresAt: new Date(Date.now() + 3600_000),
       },
     );
+
+    const result = await client.callTool({
+      name: "OUTLOOK_SEND_EMAIL",
+      arguments: {
+        to: "buyer@customer-abc.test",
+        subject: "Your quote",
+        body: "£7,500 for 500 units of Product A.",
+      },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content).toMatchObject([
+      {
+        type: "text",
+        text: expect.stringContaining("Outlook is not connected"),
+      },
+    ]);
+  });
+
+  it("OUTLOOK_SEND_EMAIL sends via Outlook once connected", async () => {
+    await integrationService.connectOAuthAccount(organisationId, "outlook", {
+      accountName: "sales@acme.test",
+      config: { email: "sales@acme.test" },
+      credentials: {
+        accessToken: "access-outlook",
+        refreshToken: "refresh-outlook",
+      },
+      expiresAt: new Date(Date.now() + 3600_000),
+      grantedScopes: ["https://graph.microsoft.com/Mail.Send"],
+    });
     const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await client.callTool({
-      name: "send_email",
+      name: "OUTLOOK_SEND_EMAIL",
       arguments: {
         to: "buyer@customer-abc.test",
         subject: "Your quote",
@@ -341,17 +426,49 @@ describe("MCP tool server", () => {
     });
 
     expect(result.isError).toBeFalsy();
-    // Outlook's sendMail hits /me/sendMail — confirms Outlook's client was
-    // used, not Gmail's.
+    expect(result.structuredContent).toEqual({ sent: true });
     const [calledUrl] = fetchMock.mock.calls[0] as unknown as [string];
     expect(calledUrl).toContain("/sendMail");
   });
 
-  it("notify_channel reports a tool error when Slack isn't connected for the organisation", async () => {
+  it("OUTLOOK_SEND_EMAIL is denied when the connected account has Mail.Read but not Mail.Send — the real, genuinely-partial-grant case", async () => {
+    await integrationService.connectOAuthAccount(organisationId, "outlook", {
+      accountName: "sales@acme.test",
+      config: { email: "sales@acme.test" },
+      credentials: {
+        accessToken: "access-outlook",
+        refreshToken: "refresh-outlook",
+      },
+      expiresAt: new Date(Date.now() + 3600_000),
+      // Declined Mail.Send on the consent screen — a real, not synthetic,
+      // partial grant (unlike every other provider here, Outlook's
+      // Mail.Read/Mail.Send are independently grantable).
+      grantedScopes: ["https://graph.microsoft.com/Mail.Read"],
+    });
+    const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
+    vi.stubGlobal("fetch", fetchMock);
+
     const result = await client.callTool({
-      name: "notify_channel",
+      name: "OUTLOOK_SEND_EMAIL",
       arguments: {
-        platform: "slack",
+        to: "buyer@customer-abc.test",
+        subject: "Your quote",
+        body: "£7,500 for 500 units of Product A.",
+      },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content).toMatchObject([
+      { type: "text", text: expect.stringContaining("Tool access denied") },
+    ]);
+    // Caught proactively, before ever attempting the real API call.
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("SLACK_POST_MESSAGE reports a tool error when Slack isn't connected for the organisation", async () => {
+    const result = await client.callTool({
+      name: "SLACK_POST_MESSAGE",
+      arguments: {
         channel: "#general",
         message: "A quote needs approval.",
       },
@@ -363,11 +480,10 @@ describe("MCP tool server", () => {
     ]);
   });
 
-  it("notify_channel is scoped to the organisation the server was constructed for, not any org the LLM names", async () => {
+  it("SLACK_POST_MESSAGE is scoped to the organisation the server was constructed for, not any org the LLM names", async () => {
     const result = await client.callTool({
-      name: "notify_channel",
+      name: "SLACK_POST_MESSAGE",
       arguments: {
-        platform: "slack",
         channel: "#general",
         message: "A quote needs approval.",
         organisationId: "some-other-org",
@@ -380,11 +496,10 @@ describe("MCP tool server", () => {
     ]);
   });
 
-  it("notify_channel reports a tool error when Teams isn't connected for the organisation", async () => {
+  it("TEAMS_POST_MESSAGE reports a tool error when Teams isn't connected for the organisation", async () => {
     const result = await client.callTool({
-      name: "notify_channel",
+      name: "TEAMS_POST_MESSAGE",
       arguments: {
-        platform: "teams",
         teamId: "team-1",
         channel: "channel-1",
         message: "A quote needs approval.",
@@ -397,11 +512,10 @@ describe("MCP tool server", () => {
     ]);
   });
 
-  it("notify_channel on Teams is scoped to the organisation the server was constructed for, not any org the LLM names", async () => {
+  it("TEAMS_POST_MESSAGE is scoped to the organisation the server was constructed for, not any org the LLM names", async () => {
     const result = await client.callTool({
-      name: "notify_channel",
+      name: "TEAMS_POST_MESSAGE",
       arguments: {
-        platform: "teams",
         teamId: "team-1",
         channel: "channel-1",
         message: "A quote needs approval.",
@@ -415,9 +529,25 @@ describe("MCP tool server", () => {
     ]);
   });
 
-  it("check_calendar_availability reports a tool error when Outlook Calendar isn't connected", async () => {
+  it("TEAMS_POST_MESSAGE rejects a missing teamId at the schema level, rather than failing obscurely later", async () => {
+    // teamId is a required schema field on this tool (not a conditional
+    // handler-level check the way the old shared notify_channel needed,
+    // since this tool only ever means Teams) — Zod rejects it before the
+    // handler ever runs.
     const result = await client.callTool({
-      name: "check_calendar_availability",
+      name: "TEAMS_POST_MESSAGE",
+      arguments: {
+        channel: "channel-1",
+        message: "Needs attention.",
+      },
+    });
+
+    expect(result.isError).toBe(true);
+  });
+
+  it("OUTLOOK_CHECK_CALENDAR_AVAILABILITY reports a tool error when Outlook Calendar isn't connected", async () => {
+    const result = await client.callTool({
+      name: "OUTLOOK_CHECK_CALENDAR_AVAILABILITY",
       arguments: {
         attendees: ["buyer@customer-abc.test"],
         durationMinutes: 30,
@@ -435,9 +565,9 @@ describe("MCP tool server", () => {
     ]);
   });
 
-  it("create_calendar_event reports a tool error when Outlook Calendar isn't connected", async () => {
+  it("OUTLOOK_CREATE_CALENDAR_EVENT reports a tool error when Outlook Calendar isn't connected", async () => {
     const result = await client.callTool({
-      name: "create_calendar_event",
+      name: "OUTLOOK_CREATE_CALENDAR_EVENT",
       arguments: {
         subject: "Quote review",
         start: "2026-09-02T09:00:00.000Z",
@@ -455,9 +585,9 @@ describe("MCP tool server", () => {
     ]);
   });
 
-  it("create_calendar_event is scoped to the organisation the server was constructed for, not any org the LLM names", async () => {
+  it("OUTLOOK_CREATE_CALENDAR_EVENT is scoped to the organisation the server was constructed for, not any org the LLM names", async () => {
     const result = await client.callTool({
-      name: "create_calendar_event",
+      name: "OUTLOOK_CREATE_CALENDAR_EVENT",
       arguments: {
         subject: "Quote review",
         start: "2026-09-02T09:00:00.000Z",
@@ -520,23 +650,6 @@ describe("MCP tool server", () => {
         text: expect.stringContaining('No record type named "NotARealType"'),
       },
     ]);
-  });
-
-  it("requires teamId when notifying a Teams channel, rather than failing obscurely later", async () => {
-    // The "required only when platform is teams" rule can't be expressed
-    // in a flat MCP input schema, so it's enforced in the handler — this
-    // locks in that it produces a correctable message, not a crash.
-    const result = await client.callTool({
-      name: "notify_channel",
-      arguments: {
-        platform: "teams",
-        channel: "channel-1",
-        message: "Needs attention.",
-      },
-    });
-
-    expect(result.isError).toBe(true);
-    expect(JSON.stringify(result.content)).toContain("teamId is required");
   });
 
   it("find_record matches an exact field value, not a substring", async () => {
@@ -637,10 +750,10 @@ describe("MCP tool server", () => {
     ]);
   });
 
-  it("create_folder reports a tool error when the storage provider isn't connected", async () => {
+  it("GOOGLE_DRIVE_CREATE_FOLDER reports a tool error when the storage provider isn't connected", async () => {
     const result = await client.callTool({
-      name: "create_folder",
-      arguments: { provider: "google-drive", path: ["1042"] },
+      name: "GOOGLE_DRIVE_CREATE_FOLDER",
+      arguments: { path: ["1042"] },
     });
 
     expect(result.isError).toBe(true);
@@ -652,23 +765,37 @@ describe("MCP tool server", () => {
     ]);
   });
 
-  it("create_folder reports a clear error when siteName is missing for sharepoint", async () => {
+  it("SHAREPOINT_CREATE_FOLDER rejects a missing siteName at the schema level", async () => {
+    // siteName is a required schema field on this tool (unconditionally,
+    // since this tool only ever means SharePoint) — Zod rejects it before
+    // the handler ever runs, rather than a handler-level check.
     const result = await client.callTool({
-      name: "create_folder",
-      arguments: { provider: "sharepoint", path: ["1042"] },
+      name: "SHAREPOINT_CREATE_FOLDER",
+      arguments: { path: ["1042"] },
+    });
+
+    expect(result.isError).toBe(true);
+  });
+
+  it("SHAREPOINT_CREATE_FOLDER reports a tool error when the storage provider isn't connected", async () => {
+    const result = await client.callTool({
+      name: "SHAREPOINT_CREATE_FOLDER",
+      arguments: { siteName: "Acme Site", path: ["1042"] },
     });
 
     expect(result.isError).toBe(true);
     expect(result.content).toMatchObject([
-      { type: "text", text: expect.stringContaining("siteName is required") },
+      {
+        type: "text",
+        text: expect.stringContaining("SharePoint is not connected"),
+      },
     ]);
   });
 
-  it("save_file reports a tool error when the storage provider isn't connected", async () => {
+  it("GOOGLE_DRIVE_SAVE_FILE reports a tool error when the storage provider isn't connected", async () => {
     const result = await client.callTool({
-      name: "save_file",
+      name: "GOOGLE_DRIVE_SAVE_FILE",
       arguments: {
-        provider: "google-drive",
         path: ["1042", "Client correspondence"],
         filename: "latest.txt",
         mimeType: "text/plain",
@@ -685,11 +812,10 @@ describe("MCP tool server", () => {
     ]);
   });
 
-  it("populate_template reports a tool error when the storage provider isn't connected", async () => {
+  it("GOOGLE_DRIVE_POPULATE_TEMPLATE reports a tool error when the storage provider isn't connected", async () => {
     const result = await client.callTool({
-      name: "populate_template",
+      name: "GOOGLE_DRIVE_POPULATE_TEMPLATE",
       arguments: {
-        provider: "google-drive",
         templatePath: ["Templates", "quote-template.docx"],
         outputPath: ["1042", "Quotation"],
         outputFilename: "quote-final.docx",
@@ -706,7 +832,7 @@ describe("MCP tool server", () => {
     ]);
   });
 
-  it("populate_template downloads a real template, fills its {field} placeholders, and uploads the result", async () => {
+  it("GOOGLE_DRIVE_POPULATE_TEMPLATE downloads a real template, fills its {field} placeholders, and uploads the result", async () => {
     await integrationService.connectOAuthAccount(
       organisationId,
       "google-drive",
@@ -718,6 +844,7 @@ describe("MCP tool server", () => {
           refreshToken: "drive-refresh",
         },
         expiresAt: new Date(Date.now() + 3600_000),
+        grantedScopes: ["https://www.googleapis.com/auth/drive"],
       },
     );
 
@@ -790,9 +917,8 @@ describe("MCP tool server", () => {
     });
 
     const result = await client.callTool({
-      name: "populate_template",
+      name: "GOOGLE_DRIVE_POPULATE_TEMPLATE",
       arguments: {
-        provider: "google-drive",
         templatePath: ["Templates", "quote-template.docx"],
         outputPath: ["1042", "Quotation"],
         outputFilename: "quote-final.docx",
@@ -813,7 +939,7 @@ describe("MCP tool server", () => {
     expect(renderedXml).not.toContain("{customerName}");
   });
 
-  it("send_email resolves an attachment reference from connected storage and includes it in the outbound message", async () => {
+  it("GMAIL_SEND_EMAIL resolves an attachment reference from connected storage and includes it in the outbound message", async () => {
     await integrationService.connectOAuthAccount(
       organisationId,
       "google-drive",
@@ -825,6 +951,7 @@ describe("MCP tool server", () => {
           refreshToken: "drive-refresh",
         },
         expiresAt: new Date(Date.now() + 3600_000),
+        grantedScopes: ["https://www.googleapis.com/auth/drive"],
       },
     );
     await integrationService.connectGmailAccount(
@@ -834,6 +961,7 @@ describe("MCP tool server", () => {
         accessToken: "gmail-token",
         refreshToken: "gmail-refresh",
         expiresAt: new Date(Date.now() + 3600_000),
+        scope: "https://mail.google.com/",
       },
     );
 
@@ -862,7 +990,7 @@ describe("MCP tool server", () => {
     });
 
     const result = await client.callTool({
-      name: "send_email",
+      name: "GMAIL_SEND_EMAIL",
       arguments: {
         to: "buyer@customer-abc.test",
         subject: "Your quote",

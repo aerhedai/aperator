@@ -3,23 +3,37 @@ import type { ToolCallback } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 
 import type { AIProvider } from "@/lib/ai/provider";
+import * as agentRepository from "@/lib/agents/agent-repository";
 import * as integrationRepository from "@/lib/integrations/integration-repository";
 import * as integrationService from "@/lib/integrations/integration-service";
 import type { DiscoveredMcpTool } from "@/lib/integrations/mcp/tool-naming";
-import { createCheckCalendarAvailabilityTool } from "@/lib/mcp/tools/check-calendar-availability";
-import { createCreateCalendarEventTool } from "@/lib/mcp/tools/create-calendar-event";
-import { createCreateFolderTool } from "@/lib/mcp/tools/create-folder";
 import { createCreateRecordTool } from "@/lib/mcp/tools/create-record";
 import { createFindRecordTool } from "@/lib/mcp/tools/find-record";
+import { createGoogleDriveCreateFolderTool } from "@/lib/mcp/tools/google-drive-create-folder";
+import { createGoogleDrivePopulateTemplateTool } from "@/lib/mcp/tools/google-drive-populate-template";
+import { createGoogleDriveSaveFileTool } from "@/lib/mcp/tools/google-drive-save-file";
+import { createInstallTemplateTool } from "@/lib/mcp/tools/install-template";
+import { createInstallWorkflowTemplateTool } from "@/lib/mcp/tools/install-workflow-template";
 import { createInvokeAgentTool } from "@/lib/mcp/tools/invoke-agent";
+import { createListInvokableTool } from "@/lib/mcp/tools/list-invokable";
+import { createInvokeWorkflowTool } from "@/lib/mcp/tools/invoke-workflow";
+import { createListTemplatesTool } from "@/lib/mcp/tools/list-templates";
 import { createMcpProxyTool } from "@/lib/mcp/tools/mcp-proxy-tool";
-import { createNotifyChannelTool } from "@/lib/mcp/tools/notify-channel";
-import { createPopulateTemplateTool } from "@/lib/mcp/tools/populate-template";
-import { createSaveFileTool } from "@/lib/mcp/tools/save-file";
+import { createOutlookCheckCalendarAvailabilityTool } from "@/lib/mcp/tools/outlook-check-calendar-availability";
+import { createOutlookCreateCalendarEventTool } from "@/lib/mcp/tools/outlook-create-calendar-event";
+import { createGmailReadInboxTool } from "@/lib/mcp/tools/gmail-read-inbox";
+import { createGmailSendEmailTool } from "@/lib/mcp/tools/gmail-send-email";
+import { createOutlookReadInboxTool } from "@/lib/mcp/tools/outlook-read-inbox";
+import { createOutlookSendEmailTool } from "@/lib/mcp/tools/outlook-send-email";
 import { createSearchKnowledgeTool } from "@/lib/mcp/tools/search-knowledge";
 import { createSearchRecordsTool } from "@/lib/mcp/tools/search-records";
-import { createSendEmailTool } from "@/lib/mcp/tools/send-email";
+import { createSharePointCreateFolderTool } from "@/lib/mcp/tools/sharepoint-create-folder";
+import { createSharePointPopulateTemplateTool } from "@/lib/mcp/tools/sharepoint-populate-template";
+import { createSharePointSaveFileTool } from "@/lib/mcp/tools/sharepoint-save-file";
+import { createSlackPostMessageTool } from "@/lib/mcp/tools/slack-post-message";
+import { createTeamsPostMessageTool } from "@/lib/mcp/tools/teams-post-message";
 import { createUpdateRecordTool } from "@/lib/mcp/tools/update-record";
+import * as workflowService from "@/lib/workflows/workflow-service";
 
 // Marks a tool as having no side effects. Read-only tools are never
 // approval-gated (lib/policies/policy-engine.ts); the tools that mutate
@@ -56,18 +70,17 @@ interface ToolDefinition<
  *
  * An agent's actionIntegrationId is a single field shared across all of
  * its granted action tools, but a pinned account only ever belongs to one
- * provider (e.g. a Gmail address) — forwarding it unconditionally into
- * every action tool would make notify_channel hard-error ("not a Slack
- * account") for an agent pinned to Gmail, or vice versa. Resolved once
- * here and only forwarded into the tool(s) whose own provider matches;
- * otherwise undefined, so that tool falls back to its own provider's
- * organisation default instead of failing. send_email is provider-agnostic
- * across Gmail/Outlook, so it matches either.
+ * provider (e.g. a Gmail address) — every provider-specific tool
+ * (GMAIL_SEND_EMAIL, SLACK_POST_MESSAGE, ...) only ever needs the pin
+ * forwarded when it's actually that tool's own provider; otherwise
+ * undefined, so the tool falls back to its provider's organisation default
+ * instead of receiving a pin that belongs to a different provider entirely.
  *
  * callerAgentId identifies which agent this server instance's calls are
  * made on behalf of — invoke_agent is the one tool that needs to know who
- * is calling, to check its AgentInvocationGrant allow-list. Every other
- * tool ignores it. invocationDepth is forwarded to invoke_agent's own
+ * is calling, both to exclude it from its own invokable list and to check
+ * invocation depth. Every other tool ignores it. invocationDepth is
+ * forwarded to invoke_agent's own
  * recursion guard. aiProvider, if supplied, is the already-resolved
  * AIProvider the calling run is itself using — invoke_agent reuses it
  * rather than resolving its own, and falls back to resolving one itself
@@ -95,7 +108,8 @@ export async function createMcpServer(
   const pinnedFor = (...providers: string[]) =>
     provider && providers.includes(provider) ? actionIntegrationId : undefined;
 
-  const emailId = pinnedFor("gmail", "outlook");
+  const gmailId = pinnedFor("gmail");
+  const outlookId = pinnedFor("outlook");
   const slackId = pinnedFor("slack");
   const teamsId = pinnedFor("teams");
   const calendarId = pinnedFor("outlook-calendar");
@@ -140,31 +154,89 @@ export async function createMcpServer(
   register(createCreateRecordTool(organisationId));
   register(createUpdateRecordTool(organisationId));
 
-  // Communicate
-  register(createSendEmailTool(organisationId, emailId));
-  register(createNotifyChannelTool(organisationId, slackId, teamsId));
+  // Gmail
+  register(createGmailReadInboxTool(organisationId, gmailId), readOnly);
+  register(createGmailSendEmailTool(organisationId, gmailId));
 
-  // Calendar
+  // Outlook
+  register(createOutlookReadInboxTool(organisationId, outlookId), readOnly);
+  register(createOutlookSendEmailTool(organisationId, outlookId));
+
+  // Slack
+  register(createSlackPostMessageTool(organisationId, slackId));
+
+  // Teams
+  register(createTeamsPostMessageTool(organisationId, teamsId));
+
+  // Outlook Calendar
   register(
-    createCheckCalendarAvailabilityTool(organisationId, calendarId),
+    createOutlookCheckCalendarAvailabilityTool(organisationId, calendarId),
     readOnly,
   );
-  register(createCreateCalendarEventTool(organisationId, calendarId));
+  register(createOutlookCreateCalendarEventTool(organisationId, calendarId));
 
-  // Files
-  register(createCreateFolderTool(organisationId));
-  register(createSaveFileTool(organisationId));
-  register(createPopulateTemplateTool(organisationId));
+  // Google Drive
+  register(createGoogleDriveCreateFolderTool(organisationId));
+  register(createGoogleDriveSaveFileTool(organisationId));
+  register(createGoogleDrivePopulateTemplateTool(organisationId));
 
-  // Orchestration
+  // SharePoint
+  register(createSharePointCreateFolderTool(organisationId));
+  register(createSharePointSaveFileTool(organisationId));
+  register(createSharePointPopulateTemplateTool(organisationId));
+
+  // Orchestration — list_invokable first: it re-queries live at call time
+  // (unlike invoke_agent/invoke_workflow's own descriptions below, which
+  // are fixed strings computed once when this server is built and can go
+  // stale for the rest of a turn the moment something is installed
+  // mid-loop) — see its own doc comment for why that distinction matters.
+  register(createListInvokableTool(organisationId, callerAgentId), readOnly);
+
+  // Every active agent in the org is invokable by default
+  // (Agent.chatInvokable), so the set the model is actually told about is
+  // computed fresh here rather than read from a per-caller grant table.
+  // CHAT-mode agents are excluded (nothing invokes the one chat agent an
+  // org has), as is the caller itself.
+  const invokableAgents = callerAgentId
+    ? (await agentRepository.findAgentsByOrganisation(organisationId))
+        .filter(
+          (a) =>
+            a.id !== callerAgentId &&
+            a.status === "ACTIVE" &&
+            a.executionMode !== "CHAT" &&
+            a.chatInvokable,
+        )
+        .map((a) => ({ id: a.id, name: a.name, description: a.description }))
+    : [];
   register(
     createInvokeAgentTool(
       organisationId,
       callerAgentId,
       invocationDepth,
       aiProvider,
+      invokableAgents,
     ),
   );
+  // Every ACTIVE workflow is invokable — a workflow has no per-agent grant
+  // to check (unlike invoke_agent's chatInvokable), since asking a
+  // department to handle something is gated only by whether that
+  // department is actually running, not by an explicit allow-list.
+  const invokableWorkflows = (
+    await workflowService.listWorkflows(organisationId)
+  )
+    .filter((w) => w.status === "ACTIVE")
+    .map((w) => ({ id: w.id, name: w.name, description: w.description }));
+  register(
+    createInvokeWorkflowTool(
+      organisationId,
+      invocationDepth,
+      aiProvider,
+      invokableWorkflows,
+    ),
+  );
+  register(createListTemplatesTool(organisationId), readOnly);
+  register(createInstallTemplateTool(organisationId));
+  register(createInstallWorkflowTemplateTool(organisationId));
 
   // Discovered tools from connected external MCP servers — proxied here,
   // one registration per cached tool, so every existing tool-call path

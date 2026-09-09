@@ -70,6 +70,13 @@ enum ApprovalStatus {
 enum WorkflowTriggerType {
   EMAIL
   WEBHOOK
+  // No real inbound event — reachable only via invoke_workflow (chat) or
+  // a future manual "run this now" action. Exempt from the one-ACTIVE-
+  // per-trigger rule (workflow-service.ts's activateWorkflow): several
+  // departments installed from WorkflowTemplate can all be simultaneously
+  // ACTIVE and independently addressable by id, unlike EMAIL/WEBHOOK
+  // where an inbound event needs exactly one deterministic recipient.
+  MANUAL
 }
 
 enum WorkflowAgentRole {
@@ -158,6 +165,7 @@ model Organisation {
   knowledgeDocuments  KnowledgeDocument[]
   knowledgeChunks     KnowledgeChunk[]
   agentTemplates      AgentTemplate[]
+  workflowTemplates   WorkflowTemplate[]
 }
 
 // The shape of a business's own data — a landlord's Properties, a law
@@ -310,18 +318,22 @@ model Agent {
   // application code (e.g. entity-status-signal-pipeline.ts), not the
   // database. Empty object means "not configured."
   pipelineConfig       Json               @default("{}")
+  // Whether another agent (in practice, today, only the org's one
+  // CHAT-mode agent) may call this one through invoke_agent. Defaults to
+  // true: the platform's own orchestration model is "anything active in
+  // the organisation is reachable unless you specifically hide it," not
+  // an allow-list a business has to populate one agent at a time before
+  // chat can do anything (CLAUDE.md's own primitives-first spirit applied
+  // to orchestration, not just tools). Replaces the old
+  // AgentInvocationGrant join table, which was the inverse default and
+  // meant a freshly-created chat agent could invoke nothing at all.
+  chatInvokable        Boolean            @default(true)
 
   organisation        Organisation    @relation(fields: [organisationId], references: [id])
   actionIntegration   Integration?    @relation(fields: [actionIntegrationId], references: [id])
   runs                AgentRun[]
   tools               AgentTool[]
   workflowMemberships WorkflowAgent[]
-  // Which other agents this agent (typically CHAT-mode) may call via the
-  // invoke_agent tool — this side is the caller.
-  invokableAgents     AgentInvocationGrant[] @relation("InvocationCaller")
-  // Which other agents may invoke *this* one — kept for the cascade; not
-  // read directly anywhere today.
-  invokableBy         AgentInvocationGrant[] @relation("InvocationTarget")
 
   @@index([organisationId])
   @@index([actionIntegrationId])
@@ -343,28 +355,6 @@ model AgentTool {
 
   @@unique([agentId, toolName])
   @@index([agentId])
-}
-
-// Explicit allow-list of which agents a (typically CHAT-mode) agent may
-// call through the generic invoke_agent tool — the same "grant, don't
-// imply" shape as AgentTool, kept as its own table rather than an overload
-// of AgentTool because it points at another Agent, not a fixed tool name.
-// Having invoke_agent itself granted isn't enough on its own; the caller
-// also needs a row here naming exactly which agent it may address.
-model AgentInvocationGrant {
-  id                  String   @id @default(cuid())
-  orchestratorAgentId String
-  targetAgentId       String
-  createdAt           DateTime @default(now())
-
-  // Cascade both ways: a grant row has no independent value once either
-  // side of it is gone — same reasoning as AgentTool.agent.
-  orchestratorAgent Agent @relation("InvocationCaller", fields: [orchestratorAgentId], references: [id], onDelete: Cascade)
-  targetAgent       Agent @relation("InvocationTarget", fields: [targetAgentId], references: [id], onDelete: Cascade)
-
-  @@unique([orchestratorAgentId, targetAgentId])
-  @@index([orchestratorAgentId])
-  @@index([targetAgentId])
 }
 
 // A named, reusable pipeline: one classifier agent that decides which
@@ -653,14 +643,64 @@ model AgentTemplate {
   organisationId String?
   name           String
   description    String
+  // Which Agent.categoryType this template installs as (schemas.ts's own
+  // CategoryType values). Defaults to "steps" — every template before
+  // this field existed was a step programme, so this is a no-op for them.
+  // "loop" is the escape hatch for a process a fixed step sequence can't
+  // express: an `act` step is always terminal (steps/schema.ts), so
+  // anything needing to check something and *then* decide what to do
+  // (check calendar availability, then maybe book) needs a real
+  // tool-calling loop instead.
+  categoryType   String  @default("steps")
+  // LOOP-only. Ignored for every other categoryType, which instead builds
+  // its own generic instructions from name+description at install time
+  // (see installAgentSpec) — left empty here rather than duplicating that
+  // wrapper text into every row.
+  instructions   String  @default("")
   // The step programme, same shape Agent.pipelineConfig holds and
   // validated by the same schema (lib/harness/steps/schema.ts) — a
-  // template that wouldn't run is not a template.
+  // template that wouldn't run is not a template. Only meaningful when
+  // categoryType is "steps".
   steps          Json    @default("{}")
   // Tools the steps need. Installing a template pre-ticks these rather
   // than granting them silently: a tool an agent holds without anyone
   // choosing it is exactly what the per-agent grant model exists to stop.
   suggestedTools String[] @default([])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organisation Organisation? @relation(fields: [organisationId], references: [id])
+
+  @@index([organisationId])
+}
+
+// A department: a classifier plus its handler agents, installed together
+// as one real Workflow (CLAUDE.md §6 — a template is a saved bundle of
+// primitive configuration, not new platform code). Handlers are embedded
+// as JSON rather than rows referencing AgentTemplate, because a workflow
+// template's handlers are never shared with a standalone single-agent
+// template — there is nothing for a foreign key to point at.
+model WorkflowTemplate {
+  id             String  @id @default(cuid())
+  organisationId String?
+  name           String
+  description    String
+  // The classifier's own system instructions. A single generic default
+  // works for every department (selectHandler's own classifyIntent call
+  // appends the real candidate list at classification time — this is
+  // just the prefix), so most templates leave it as that shared default
+  // rather than customising it per department.
+  classifierInstructions String
+  // Array of handler specs (see lib/workflows/workflow-template-types.ts
+  // for the shape) — each installs as its own real Agent, same validation
+  // path a hand-built one goes through.
+  handlers       Json     @default("[]")
+  // Record Type names (from lib/records/starter-record-types.ts) this
+  // template's handlers need to exist before they can do anything — e.g.
+  // a Lead-intake handler needs a Lead type to write to. Seeded once at
+  // install time, same reasoning as provision-email-workflow.ts bringing
+  // Product/Customer with it.
+  recordTypes    String[] @default([])
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

@@ -10,21 +10,33 @@ import {
 const ORG_ID = "test-org";
 
 describe("requiresApprovalBeforeExecution", () => {
-  it("requires approval for send_email", async () => {
-    expect(await requiresApprovalBeforeExecution("send_email", ORG_ID)).toBe(
-      true,
-    );
-  });
-
-  it("requires approval for create_calendar_event", async () => {
+  it("requires approval for GMAIL_SEND_EMAIL", async () => {
     expect(
-      await requiresApprovalBeforeExecution("create_calendar_event", ORG_ID),
+      await requiresApprovalBeforeExecution("GMAIL_SEND_EMAIL", ORG_ID),
     ).toBe(true);
   });
 
-  it("does not require approval for notify_channel", async () => {
+  it("requires approval for OUTLOOK_SEND_EMAIL", async () => {
     expect(
-      await requiresApprovalBeforeExecution("notify_channel", ORG_ID),
+      await requiresApprovalBeforeExecution("OUTLOOK_SEND_EMAIL", ORG_ID),
+    ).toBe(true);
+  });
+
+  it("requires approval for OUTLOOK_CREATE_CALENDAR_EVENT", async () => {
+    expect(
+      await requiresApprovalBeforeExecution(
+        "OUTLOOK_CREATE_CALENDAR_EVENT",
+        ORG_ID,
+      ),
+    ).toBe(true);
+  });
+
+  it("does not require approval for SLACK_POST_MESSAGE or TEAMS_POST_MESSAGE", async () => {
+    expect(
+      await requiresApprovalBeforeExecution("SLACK_POST_MESSAGE", ORG_ID),
+    ).toBe(false);
+    expect(
+      await requiresApprovalBeforeExecution("TEAMS_POST_MESSAGE", ORG_ID),
     ).toBe(false);
   });
 
@@ -37,7 +49,7 @@ describe("requiresApprovalBeforeExecution", () => {
     ).toBe(false);
     expect(
       await requiresApprovalBeforeExecution(
-        "check_calendar_availability",
+        "OUTLOOK_CHECK_CALENDAR_AVAILABILITY",
         ORG_ID,
       ),
     ).toBe(false);
@@ -97,9 +109,9 @@ describe("evaluatePolicy", () => {
     expect(result.decision).toBe("ALLOW");
   });
 
-  it("allows send_email's own output too — its gate is pre-execution, not output-based", () => {
+  it("allows GMAIL_SEND_EMAIL's own output too — its gate is pre-execution, not output-based", () => {
     const result = evaluatePolicy({
-      toolName: "send_email",
+      toolName: "GMAIL_SEND_EMAIL",
       toolOutput: { sent: true },
     });
 

@@ -23,6 +23,15 @@ export interface GoogleTokens {
   accessToken: string;
   refreshToken: string;
   expiresAt: Date;
+  // Space-delimited, exactly as Google returns it — the *actually* granted
+  // scope, which can be a subset of what was requested if the user declines
+  // part of the consent screen. Optional so existing test fixtures that
+  // don't care about scope-based tool availability don't need updating;
+  // real exchanges always populate it. Not re-captured on refresh: Google's
+  // refresh_token grant doesn't narrow scope on its own (a revoked scope
+  // invalidates the refresh token entirely rather than silently shrinking
+  // it), so the connect-time value stays authoritative for this token's life.
+  scope?: string;
 }
 
 export function buildGoogleAuthUrl(
@@ -49,6 +58,7 @@ interface GoogleTokenResponse {
   access_token: string;
   refresh_token?: string;
   expires_in: number;
+  scope?: string;
   error?: string;
   error_description?: string;
 }
@@ -100,6 +110,7 @@ export async function exchangeCodeForTokens(
     accessToken: data.access_token,
     refreshToken: data.refresh_token,
     expiresAt: new Date(Date.now() + data.expires_in * 1000),
+    scope: data.scope ?? "",
   };
 }
 

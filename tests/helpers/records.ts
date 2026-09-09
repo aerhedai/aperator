@@ -13,7 +13,7 @@ import { seedStarterRecordTypes } from "@/lib/records/starter-record-type-servic
 
 /** Seeds the Product and Customer record types for an organisation. */
 export async function seedStarterTypes(organisationId: string) {
-  await seedStarterRecordTypes(organisationId);
+  await seedStarterRecordTypes(organisationId, ["Product", "Customer"]);
 }
 
 /**
@@ -33,7 +33,11 @@ export async function createRecord(
     where: { organisationId, name: typeName },
   });
   if (!type) {
-    await seedStarterRecordTypes(organisationId);
+    // Scoped to just the requested type — seeding every starter type here
+    // (Product, Customer, Lead, Booking, ...) would silently give a test
+    // record types it never asked for, breaking any test that asserts an
+    // organisation's exact record type list.
+    await seedStarterRecordTypes(organisationId, [typeName]);
     type = await prisma.customEntityType.findFirst({
       where: { organisationId, name: typeName },
     });

@@ -77,6 +77,31 @@ describe("exchangeCodeForTokens", () => {
     ).rejects.toThrow(/did not return a refresh token/);
   });
 
+  it("captures the actually-granted scope from the token response", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            access_token: "access-1",
+            refresh_token: "refresh-1",
+            expires_in: 3600,
+            scope: "https://www.googleapis.com/auth/drive.file openid email",
+          }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const tokens = await exchangeCodeForTokens(
+      "code-1",
+      "http://localhost:3000/api/integrations/google-drive/callback",
+    );
+
+    expect(tokens.scope).toBe(
+      "https://www.googleapis.com/auth/drive.file openid email",
+    );
+  });
+
   it("throws using Google's own error fields on a non-2xx response", async () => {
     const fetchMock = vi.fn(
       async () =>

@@ -8,6 +8,64 @@ import type { OAuthAdapter } from "@/lib/integrations/oauth-adapter";
 // non-technical business owner.
 const SLACK_SCOPES = "chat:write,chat:write.public";
 
+// A deliberate widening requested on top of the bot scopes above — these are
+// Slack *user* token scopes (Slack's OAuth v2 issues a separate
+// authed_user.access_token for these, distinct from the bot token SLACK_SCOPES
+// produces). Requested here so the consent screen shows them; exchangeSlackCode
+// below does not yet capture or persist authed_user.access_token, so none of
+// this is usable by any tool yet — that's a separate, not-yet-built piece of
+// work, not an oversight.
+//
+// Deliberately excludes identity.basic: that's a legacy "Sign in with Slack"
+// scope belonging to a different endpoint (slack.com/openid/connect/authorize),
+// not a real scope in the modern granular catalog this oauth/v2/authorize
+// request draws from — including it makes Slack reject the *entire* request
+// as "Invalid permissions requested" (confirmed live).
+const SLACK_USER_SCOPES = [
+  "reminders:read",
+  "users.profile:read",
+  "channels:history",
+  "channels:read",
+  "groups:history",
+  "groups:read",
+  "im:history",
+  "im:read",
+  "links:read",
+  "mpim:history",
+  "mpim:read",
+  "pins:read",
+  "reactions:read",
+  "search:read.files",
+  "search:read.im",
+  "search:read.mpim",
+  "search:read.private",
+  "search:read.public",
+  "calls:read",
+  "dnd:read",
+  "emoji:read",
+  "files:read",
+  "remote_files:read",
+  "team:read",
+  "usergroups:read",
+  "users:read",
+  "users:read.email",
+  "chat:write",
+  "dnd:write",
+  "groups:write",
+  "im:write",
+  "mpim:write",
+  "pins:write",
+  "reactions:write",
+  "remote_files:share",
+  "users.profile:write",
+  "users:write",
+  "files:write",
+  "links:write",
+  "calls:write",
+  "reminders:write",
+  "usergroups:write",
+].join(",");
+
 function requireSlackConfig() {
   if (
     !env.SLACK_CLIENT_ID ||
@@ -35,6 +93,7 @@ export function buildSlackAuthUrl(
     client_id: clientId,
     redirect_uri: redirectUri,
     scope: SLACK_SCOPES,
+    user_scope: SLACK_USER_SCOPES,
     state,
   });
   // Required by Slack for a redirect_uri that isn't a real HTTPS URL —
@@ -59,6 +118,14 @@ interface SlackOAuthResponse {
   // enabled here, so these are never expected in practice, but the shape
   // is read defensively rather than assumed absent.
   expires_in?: number;
+  // Comma-delimited bot scopes actually granted — Slack, unlike
+  // Google/Microsoft, uses commas rather than spaces here.
+  scope?: string;
+  // A separate credential from access_token above — Slack issues this only
+  // when the request carried a user_scope (SLACK_USER_SCOPES). Optional: a
+  // user can decline the user-scope consent independently of the bot
+  // install, so this may be absent even on an otherwise-successful exchange.
+  authed_user?: { id: string; access_token?: string; scope?: string };
 }
 
 export interface SlackTokens {
@@ -67,6 +134,16 @@ export interface SlackTokens {
   teamId: string;
   teamName: string;
   expiresAt: Date | null;
+  // Null when the user didn't grant the user_scope permissions (e.g.
+  // declined that half of the consent screen) — nothing currently reads
+  // this token, it's stored for when a tool that needs it exists.
+  userAccessToken: string | null;
+  authedUserId: string | null;
+  // The union of actually-granted bot scope and user scope — Slack reports
+  // these as two separate comma-delimited strings (bot on the top-level
+  // response, user under authed_user), combined here into one deduped list
+  // since a tool's availability doesn't care which token type covers it.
+  grantedScopes: string[];
 }
 
 export async function exchangeSlackCode(
@@ -102,6 +179,11 @@ export async function exchangeSlackCode(
     );
   }
 
+  const botScopes = data.scope ? data.scope.split(",") : [];
+  const userScopes = data.authed_user?.scope
+    ? data.authed_user.scope.split(",")
+    : [];
+
   return {
     botToken: data.access_token,
     botUserId: data.bot_user_id,
@@ -110,6 +192,9 @@ export async function exchangeSlackCode(
     expiresAt: data.expires_in
       ? new Date(Date.now() + data.expires_in * 1000)
       : null,
+    userAccessToken: data.authed_user?.access_token ?? null,
+    authedUserId: data.authed_user?.id ?? null,
+    grantedScopes: [...new Set([...botScopes, ...userScopes])],
   };
 }
 
@@ -122,8 +207,14 @@ export const slackOAuthAdapter: OAuthAdapter = {
     return {
       accountName: tokens.teamName,
       config: { teamId: tokens.teamId, teamName: tokens.teamName },
-      credentials: { botToken: tokens.botToken, botUserId: tokens.botUserId },
+      credentials: {
+        botToken: tokens.botToken,
+        botUserId: tokens.botUserId,
+        userAccessToken: tokens.userAccessToken,
+        authedUserId: tokens.authedUserId,
+      },
       expiresAt: tokens.expiresAt,
+      grantedScopes: tokens.grantedScopes,
     };
   },
 };

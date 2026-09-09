@@ -9,6 +9,7 @@ import {
   validatePipelineConfig,
 } from "@/lib/agents/pipeline-config-form";
 import { agentInputSchema, type CategoryType } from "@/lib/agents/schemas";
+import * as templateService from "@/lib/agents/template-service";
 import { getCurrentOrganisation } from "@/lib/organisations/current-organisation";
 
 export type AgentFormState = {
@@ -130,4 +131,27 @@ export async function updateAgentAction(
     return { error: "Agent not found." };
   }
   redirect(`/agents/${agentId}`);
+}
+
+/**
+ * The real one-click "install" — as opposed to template-picker.tsx's
+ * onInstall, which only pre-fills the *in-progress* create-agent form's
+ * client state and produces nothing until a human submits it by hand.
+ * The actual work (validation + creation) lives in
+ * templateService.installTemplate, shared with the install_template tool
+ * so a human clicking this button and chat acting on its own initiative
+ * go through identical logic.
+ */
+export async function installAgentTemplateAction(
+  templateId: string,
+): Promise<void> {
+  const organisation = await getCurrentOrganisation();
+  const result = await templateService.installTemplate(
+    organisation.id,
+    templateId,
+  );
+  if (!result.ok) {
+    redirect(`/templates?error=${encodeURIComponent(result.error)}`);
+  }
+  redirect(`/agents/${result.agentId}`);
 }

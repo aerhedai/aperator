@@ -22,19 +22,26 @@ export interface PolicyContext {
 // Checked before the tool executes (see agent-runtime.ts) — approving
 // after the fact can't un-send an email or un-invite a meeting.
 //
-// notify_channel is deliberately NOT here: an internal Slack/Teams message
-// to the business's own workspace is a different consequence class from a
-// customer-visible email or a real calendar invite. That distinction is
-// exactly why notify_channel and send_email stayed separate tools rather
-// than merging into one "send a message" (CLAUDE.md §4.5).
+// SLACK_POST_MESSAGE/TEAMS_POST_MESSAGE are deliberately NOT here: an
+// internal Slack/Teams message to the business's own workspace is a
+// different consequence class from a customer-visible email or a real
+// calendar invite. That distinction is exactly why the chat-notification
+// tools and the email tools stayed separate rather than merging into one
+// "send a message" (CLAUDE.md §4.5).
+//
+// Enumerated per provider-specific tool (GMAIL_SEND_EMAIL,
+// OUTLOOK_SEND_EMAIL, OUTLOOK_CREATE_CALENDAR_EVENT) rather than per
+// abstract capability, since each provider's action is now its own tool —
+// see docs/provider-specific-tools-design.md.
 //
 // This hardcoded set is the known limitation on the whole policy
 // primitive: a business cannot express its own rules (e.g. "quotes over
 // £10,000 need approval") without a developer editing this file. Making
 // policies data is Tier 1 roadmap work — CLAUDE.md §4.6.
 const REQUIRES_APPROVAL_BEFORE_EXECUTION = new Set([
-  "send_email",
-  "create_calendar_event",
+  "GMAIL_SEND_EMAIL",
+  "OUTLOOK_SEND_EMAIL",
+  "OUTLOOK_CREATE_CALENDAR_EVENT",
 ]);
 
 export async function requiresApprovalBeforeExecution(

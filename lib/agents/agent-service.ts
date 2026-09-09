@@ -5,7 +5,7 @@ import { Prisma, type AgentStatus } from "@/lib/generated/prisma/client";
 import * as integrationRepository from "@/lib/integrations/integration-repository";
 import * as integrationService from "@/lib/integrations/integration-service";
 import { parseMcpToolName } from "@/lib/integrations/mcp/tool-naming";
-import { TOOL_NAMES } from "@/lib/mcp/tool-registry";
+import { getToolProvider, TOOL_NAMES } from "@/lib/mcp/tool-registry";
 
 export function listAgents(organisationId: string) {
   return agentRepository.findAgentsByOrganisation(organisationId);
@@ -15,22 +15,23 @@ export function getAgent(organisationId: string, id: string) {
   return agentRepository.findAgentById(organisationId, id);
 }
 
-// actionTool is always "send_email" today (no UI to change it yet — see
-// Agent.actionTool's schema.prisma comment), which is provider-agnostic
-// across Gmail and Outlook Mail (getValidEmailAccessToken resolves
-// whichever is actually connected/pinned) — so the bound account must be
-// one of those two, not literally Gmail. Re-checked here (not trusted
+// actionTool resolves to GMAIL_SEND_EMAIL or OUTLOOK_SEND_EMAIL at run time
+// (see lib/harness/propose-action.ts's resolveActionTool) depending on
+// which of these two the bound account actually is — so the bound account
+// itself must be one of those two providers. Re-checked here (not trusted
 // from the form) since the id itself is organisation-scoped by
 // findIntegrationById, but nothing before this point confirms it's
 // actually an email account at all.
 const ACTION_ACCOUNT_PROVIDERS = ["gmail", "outlook"];
 
+// Returns the bound account's provider (for validateToolProvidersMatchBoundAccount
+// below), or null when no account is bound.
 async function validateActionIntegration(
   organisationId: string,
   actionIntegrationId: string | null,
-) {
+): Promise<string | null> {
   if (!actionIntegrationId) {
-    return;
+    return null;
   }
   const integration = await integrationRepository.findIntegrationById(
     organisationId,
@@ -43,6 +44,34 @@ async function validateActionIntegration(
     throw new Error(
       `The action account must be a Gmail or Outlook account, not a ${integration.provider} one`,
     );
+  }
+  return integration.provider;
+}
+
+// A granted provider-specific tool (GMAIL_SEND_EMAIL, SLACK_POST_MESSAGE, ...)
+// must match whichever provider this agent is actually bound to — granting
+// GMAIL_SEND_EMAIL to an agent pinned to an Outlook account would look
+// grantable but silently never work (createMcpServer only forwards the
+// pinned account into the tool(s) whose own provider matches, so the
+// mismatched tool would fall back to the organisation's default account
+// instead of erroring, an easy-to-miss surprise). Only email-family tools
+// are constrained by actionIntegrationId today — ACTION_ACCOUNT_PROVIDERS
+// restricts the bound account to gmail/outlook, so a granted Slack/Teams/
+// Outlook Calendar/Drive/SharePoint tool has no per-agent binding to check
+// against yet and is skipped here.
+function validateToolProvidersMatchBoundAccount(
+  toolNames: string[],
+  boundProvider: string | null,
+): void {
+  if (!boundProvider) return;
+  for (const toolName of toolNames) {
+    const provider = getToolProvider(toolName);
+    if (provider !== "gmail" && provider !== "outlook") continue;
+    if (provider !== boundProvider) {
+      throw new Error(
+        `"${toolName}" needs a ${provider === "gmail" ? "Gmail" : "Outlook"} account, but this agent is bound to a ${boundProvider} one.`,
+      );
+    }
   }
 }
 
@@ -88,7 +117,11 @@ async function validateToolGrants(
 
 export async function createAgent(organisationId: string, input: AgentInput) {
   const { toolNames, ...agentColumns } = input;
-  await validateActionIntegration(organisationId, input.actionIntegrationId);
+  const boundProvider = await validateActionIntegration(
+    organisationId,
+    input.actionIntegrationId,
+  );
+  validateToolProvidersMatchBoundAccount(toolNames, boundProvider);
   await validateToolGrants(organisationId, toolNames);
   const agent = await agentRepository.createAgent(organisationId, agentColumns);
   await agentToolRepository.setToolsForAgent(agent.id, toolNames);
@@ -101,7 +134,11 @@ export async function updateAgent(
   input: AgentInput,
 ) {
   const { toolNames, ...agentColumns } = input;
-  await validateActionIntegration(organisationId, input.actionIntegrationId);
+  const boundProvider = await validateActionIntegration(
+    organisationId,
+    input.actionIntegrationId,
+  );
+  validateToolProvidersMatchBoundAccount(toolNames, boundProvider);
   await validateToolGrants(organisationId, toolNames);
   const result = await agentRepository.updateAgent(
     organisationId,

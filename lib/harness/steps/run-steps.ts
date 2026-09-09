@@ -335,6 +335,11 @@ async function runLeafStep(
       for (const [key, value] of Object.entries(step.args)) {
         args[key] = resolveArg(value, store);
       }
+      // step.tool is Zod-validated against the real TOOL_NAMES enum
+      // (schema.ts) — unlike Agent.actionTool (a plain, unvalidated String
+      // column), a step's tool is always a concrete, already-registered
+      // name, never the "send_email" sentinel resolveActionTool exists for.
+      //
       // proposeAction runs the same policy gate as every other tool call:
       // an approval-required tool pauses the run here rather than
       // executing (CLAUDE.md §4.6).

@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 
-import { cleanEmailBody } from "@/lib/integrations/gmail/clean-email-body";
+import { cleanEmailBody } from "@/lib/integrations/shared/clean-email-body";
 import {
   getGmailAttachmentContent,
   getGmailMessage,

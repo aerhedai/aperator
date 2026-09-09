@@ -12,7 +12,7 @@ import {
 } from "@/lib/harness/pipeline-helpers";
 import { containsForbiddenKeyword } from "@/lib/harness/pipeline-guards";
 import { failPipeline } from "@/lib/harness/pipeline-failure";
-import { proposeAction } from "@/lib/harness/propose-action";
+import { proposeAction, resolveActionTool } from "@/lib/harness/propose-action";
 import { extractionFieldsSchema } from "@/lib/agents/extraction-fields";
 import type { Pipeline } from "@/lib/harness/types";
 
@@ -156,7 +156,11 @@ export const runAcknowledgeReplyPipeline: Pipeline = async (context) => {
   }
 
   return proposeAction(context, {
-    toolName: context.agent.actionTool,
+    toolName: await resolveActionTool(
+      context.agent.actionTool,
+      context.organisationId,
+      context.agent.actionIntegrationId,
+    ),
     args: {
       to: email,
       subject: context.agent.replySubjectTemplate ?? "Re: your message",

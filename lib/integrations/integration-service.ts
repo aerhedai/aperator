@@ -136,7 +136,13 @@ export function connectOAuthAccount(
       // (a generic interface, not Prisma-aware) but every adapter only
       // ever populates it with plain strings — genuinely JSON-safe, just
       // not provably so to Prisma.InputJsonValue's structural type.
-      config: result.config as Prisma.InputJsonValue,
+      // grantedScopes folded in here rather than given its own column —
+      // plaintext, not secret, same treatment as every other
+      // provider-specific identifying field already living in config.
+      config: {
+        ...result.config,
+        grantedScopes: result.grantedScopes ?? [],
+      } as Prisma.InputJsonValue,
       credentials: result.credentials,
       expiresAt: result.expiresAt,
     },
@@ -159,6 +165,7 @@ export function connectGmailAccount(
       refreshToken: tokens.refreshToken,
     },
     expiresAt: tokens.expiresAt,
+    grantedScopes: tokens.scope ? tokens.scope.split(" ") : [],
   });
 }
 
@@ -400,15 +407,19 @@ export async function getDefaultEmailIntegration(organisationId: string) {
 }
 
 /**
- * Used by send_email: resolves whichever email provider is actually
- * connected (or pinned via integrationId) and returns a valid access token
- * for it, so the tool doesn't need to know in advance whether it's talking
- * to Gmail or Outlook.
+ * Used by the three HARNESS pipelines that still read Agent.actionTool
+ * (quote-pipeline, acknowledge-reply-pipeline, entity-status-signal-pipeline)
+ * to resolve which concrete provider-specific tool (GMAIL_SEND_EMAIL vs.
+ * OUTLOOK_SEND_EMAIL) the stored "send_email" sentinel actually means for
+ * this agent's bound-or-default account — see
+ * lib/harness/propose-action.ts's resolveActionTool. Deliberately doesn't
+ * fetch or refresh a token the way getValidEmailAccessToken below does;
+ * this only needs to know *which* provider, not a usable credential for it.
  */
-export async function getValidEmailAccessToken(
+export async function resolveEmailProvider(
   organisationId: string,
   integrationId?: string | null,
-): Promise<{ provider: "gmail" | "outlook"; accessToken: string }> {
+): Promise<"gmail" | "outlook"> {
   const integration = integrationId
     ? await integrationRepository.findIntegrationById(
         organisationId,
@@ -426,14 +437,7 @@ export async function getValidEmailAccessToken(
   ) {
     throw new Error("The bound action account is not an email account.");
   }
-  const accessToken =
-    integration.provider === GMAIL_PROVIDER
-      ? await getValidGmailAccessToken(organisationId, integration.id)
-      : await getValidOutlookAccessToken(organisationId, integration.id);
-  return {
-    provider: integration.provider as "gmail" | "outlook",
-    accessToken,
-  };
+  return integration.provider as "gmail" | "outlook";
 }
 
 /**

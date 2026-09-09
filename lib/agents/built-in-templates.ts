@@ -16,12 +16,25 @@ import type { StepProgramme } from "@/lib/harness/steps/schema";
  *
  * Each is a complete, runnable step programme — installing one and pressing
  * save must produce an agent that works, not a skeleton to fill in.
+ *
+ * A step's `act` tool must be a real, already-registered name (Zod-validated
+ * against TOOL_NAMES, schema.ts) — unlike Agent.actionTool, there's no
+ * "send_email" sentinel a step can resolve dynamically at run time based on
+ * which email account is bound. Every email-sending step here defaults to
+ * GMAIL_SEND_EMAIL for that reason, not because Outlook is unsupported — a
+ * business using Outlook edits that one step to OUTLOOK_SEND_EMAIL after
+ * installing, the same one-line change as pointing a file-save step at a
+ * different template path.
  */
 
 export interface BuiltInTemplate {
   key: string;
   name: string;
   description: string;
+  // Both omitted means "steps" + the generic install-time wrapper — every
+  // template below is exactly that, unchanged from before these existed.
+  categoryType?: string;
+  instructions?: string;
   steps: StepProgramme;
   suggestedTools: string[];
 }
@@ -32,7 +45,7 @@ export const BUILT_IN_TEMPLATES: BuiltInTemplate[] = [
     name: "Acknowledge and reply",
     description:
       "Read an inbound message, pull out what matters, look up the sender, and write a reply. The send waits for approval. Good starting point for enquiries, complaints, and most 'read it and respond' work.",
-    suggestedTools: ["find_record", "send_email"],
+    suggestedTools: ["find_record", "GMAIL_SEND_EMAIL"],
     steps: {
       steps: [
         {
@@ -60,7 +73,7 @@ export const BUILT_IN_TEMPLATES: BuiltInTemplate[] = [
         },
         {
           kind: "act",
-          tool: "send_email",
+          tool: "GMAIL_SEND_EMAIL",
           args: {
             to: "{senderEmail}",
             subject: "Re: your enquiry",
@@ -75,7 +88,7 @@ export const BUILT_IN_TEMPLATES: BuiltInTemplate[] = [
     name: "Look up and quote",
     description:
       "Find a product from what the customer asked for, price it against your catalog, and send a quote. The send waits for approval.",
-    suggestedTools: ["find_record", "search_records", "send_email"],
+    suggestedTools: ["find_record", "search_records", "GMAIL_SEND_EMAIL"],
     steps: {
       steps: [
         {
@@ -122,7 +135,7 @@ export const BUILT_IN_TEMPLATES: BuiltInTemplate[] = [
         },
         {
           kind: "act",
-          tool: "send_email",
+          tool: "GMAIL_SEND_EMAIL",
           args: {
             to: "{senderEmail}",
             subject: "Your quote",
@@ -169,7 +182,7 @@ export const BUILT_IN_TEMPLATES: BuiltInTemplate[] = [
     name: "Answer from your documented knowledge",
     description:
       "Look the question up in your own policies and procedures, then answer using only what was found. Keeps replies consistent with what you've actually written down.",
-    suggestedTools: ["search_knowledge", "send_email"],
+    suggestedTools: ["search_knowledge", "GMAIL_SEND_EMAIL"],
     steps: {
       steps: [
         {
@@ -193,7 +206,7 @@ export const BUILT_IN_TEMPLATES: BuiltInTemplate[] = [
         },
         {
           kind: "act",
-          tool: "send_email",
+          tool: "GMAIL_SEND_EMAIL",
           args: {
             to: "{senderEmail}",
             subject: "Re: your question",
@@ -202,5 +215,29 @@ export const BUILT_IN_TEMPLATES: BuiltInTemplate[] = [
         },
       ],
     },
+  },
+  {
+    key: "inbox_manager",
+    name: "Inbox Manager",
+    description:
+      "Reviews unread messages in your connected inbox on demand and decides what each one needs: a direct reply, filing as a record, or flagging to the team.",
+    // LOOP, not a step programme — this genuinely can't be pre-sequenced:
+    // how many messages there are, and what each one turns out to need, is
+    // only known once read_inbox actually returns something. A HARNESS
+    // `act` step is also always terminal (steps/schema.ts), so it could
+    // never act on more than one message in a single run anyway.
+    categoryType: "loop",
+    instructions:
+      "Use whichever read-inbox tool you have (Gmail or Outlook) to see what unread messages are waiting. For each one, decide what it needs: if it can be answered directly, reply using the matching send-email tool; if it should be logged (an order, invoice, application, or similar), file it with create_record; if it needs a person's judgement or you don't have enough information to act confidently, flag it to the team with whichever post-message tool you have (Slack or Teams) instead of guessing. Say plainly what you found and what you did with each message.",
+    suggestedTools: [
+      "GMAIL_READ_INBOX",
+      "OUTLOOK_READ_INBOX",
+      "GMAIL_SEND_EMAIL",
+      "OUTLOOK_SEND_EMAIL",
+      "create_record",
+      "SLACK_POST_MESSAGE",
+      "TEAMS_POST_MESSAGE",
+    ],
+    steps: { steps: [] },
   },
 ];
