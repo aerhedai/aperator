@@ -29,6 +29,12 @@ export interface MicrosoftTokens {
   // primary source for the connected account's identity; see the comment
   // on decodeIdTokenEmail for why it's preferred over a Graph /me call.
   email: string | null;
+  // Space-delimited, exactly as Microsoft returns it — the *actually*
+  // granted scope, which can be a subset of what was requested. Optional so
+  // existing test fixtures that don't care about scope-based tool
+  // availability don't need updating; real exchanges always populate it.
+  // Not re-captured on refresh, same reasoning as Google's equivalent field.
+  scope?: string;
 }
 
 export function buildMicrosoftAuthUrl(
@@ -55,6 +61,7 @@ interface MicrosoftTokenResponse {
   refresh_token?: string;
   expires_in: number;
   id_token?: string;
+  scope?: string;
   error?: string;
   error_description?: string;
 }
@@ -139,6 +146,7 @@ export async function exchangeCodeForTokens(
     refreshToken: data.refresh_token,
     expiresAt: new Date(Date.now() + data.expires_in * 1000),
     email: data.id_token ? decodeIdTokenEmail(data.id_token) : null,
+    scope: data.scope ?? "",
   };
 }
 

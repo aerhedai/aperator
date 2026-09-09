@@ -136,7 +136,13 @@ export function connectOAuthAccount(
       // (a generic interface, not Prisma-aware) but every adapter only
       // ever populates it with plain strings — genuinely JSON-safe, just
       // not provably so to Prisma.InputJsonValue's structural type.
-      config: result.config as Prisma.InputJsonValue,
+      // grantedScopes folded in here rather than given its own column —
+      // plaintext, not secret, same treatment as every other
+      // provider-specific identifying field already living in config.
+      config: {
+        ...result.config,
+        grantedScopes: result.grantedScopes ?? [],
+      } as Prisma.InputJsonValue,
       credentials: result.credentials,
       expiresAt: result.expiresAt,
     },
@@ -159,6 +165,7 @@ export function connectGmailAccount(
       refreshToken: tokens.refreshToken,
     },
     expiresAt: tokens.expiresAt,
+    grantedScopes: tokens.scope ? tokens.scope.split(" ") : [],
   });
 }
 

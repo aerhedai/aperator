@@ -118,11 +118,14 @@ interface SlackOAuthResponse {
   // enabled here, so these are never expected in practice, but the shape
   // is read defensively rather than assumed absent.
   expires_in?: number;
+  // Comma-delimited bot scopes actually granted — Slack, unlike
+  // Google/Microsoft, uses commas rather than spaces here.
+  scope?: string;
   // A separate credential from access_token above — Slack issues this only
   // when the request carried a user_scope (SLACK_USER_SCOPES). Optional: a
   // user can decline the user-scope consent independently of the bot
   // install, so this may be absent even on an otherwise-successful exchange.
-  authed_user?: { id: string; access_token?: string };
+  authed_user?: { id: string; access_token?: string; scope?: string };
 }
 
 export interface SlackTokens {
@@ -136,6 +139,11 @@ export interface SlackTokens {
   // this token, it's stored for when a tool that needs it exists.
   userAccessToken: string | null;
   authedUserId: string | null;
+  // The union of actually-granted bot scope and user scope — Slack reports
+  // these as two separate comma-delimited strings (bot on the top-level
+  // response, user under authed_user), combined here into one deduped list
+  // since a tool's availability doesn't care which token type covers it.
+  grantedScopes: string[];
 }
 
 export async function exchangeSlackCode(
@@ -171,6 +179,11 @@ export async function exchangeSlackCode(
     );
   }
 
+  const botScopes = data.scope ? data.scope.split(",") : [];
+  const userScopes = data.authed_user?.scope
+    ? data.authed_user.scope.split(",")
+    : [];
+
   return {
     botToken: data.access_token,
     botUserId: data.bot_user_id,
@@ -181,6 +194,7 @@ export async function exchangeSlackCode(
       : null,
     userAccessToken: data.authed_user?.access_token ?? null,
     authedUserId: data.authed_user?.id ?? null,
+    grantedScopes: [...new Set([...botScopes, ...userScopes])],
   };
 }
 
@@ -200,6 +214,7 @@ export const slackOAuthAdapter: OAuthAdapter = {
         authedUserId: tokens.authedUserId,
       },
       expiresAt: tokens.expiresAt,
+      grantedScopes: tokens.grantedScopes,
     };
   },
 };
