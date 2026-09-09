@@ -2,13 +2,18 @@ import { env } from "@/lib/env";
 import * as microsoftCore from "@/lib/integrations/microsoft/oauth-core";
 import type { OAuthAdapter } from "@/lib/integrations/oauth-adapter";
 
+// Group.ReadWrite.All (not the narrower ChannelMessage.Send) — a deliberate
+// widening, not a default: Teams are backed by Microsoft 365 Groups, so this
+// grants create/read/manage over every group in the tenant, not just
+// posting to a channel the app is already in. Tenant admins commonly gate
+// this permission, so some users won't be able to self-consent to it.
 const TEAMS_SCOPES = [
   "openid",
   "profile",
   "email",
   "offline_access",
   "https://graph.microsoft.com/User.Read",
-  "https://graph.microsoft.com/ChannelMessage.Send",
+  "https://graph.microsoft.com/Group.ReadWrite.All",
 ];
 
 function requireTeamsRedirectUri(): string {
