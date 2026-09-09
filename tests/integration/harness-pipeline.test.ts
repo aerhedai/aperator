@@ -87,10 +87,12 @@ describe("harness pipeline", () => {
       },
     });
     await prisma.agentTool.createMany({
-      data: ["find_record", "search_records", "send_email"].map((toolName) => ({
-        agentId: quoteAgent.id,
-        toolName,
-      })),
+      data: ["find_record", "search_records", "GMAIL_SEND_EMAIL"].map(
+        (toolName) => ({
+          agentId: quoteAgent.id,
+          toolName,
+        }),
+      ),
     });
 
     restrictedQuoteAgent = await prisma.agent.create({
@@ -105,7 +107,7 @@ describe("harness pipeline", () => {
         pipelineKey: "quote",
       },
     });
-    // Deliberately missing search_records (the product lookup) and send_email.
+    // Deliberately missing search_records (the product lookup) and GMAIL_SEND_EMAIL.
     await prisma.agentTool.createMany({
       data: ["find_record"].map((toolName) => ({
         agentId: restrictedQuoteAgent.id,
@@ -159,7 +161,7 @@ describe("harness pipeline", () => {
     usage: { promptTokens: 80, completionTokens: 15 },
   };
 
-  it("runs the deterministic pipeline, records token usage per LLM call, and pauses for approval on send_email", async () => {
+  it("runs the deterministic pipeline, records token usage per LLM call, and pauses for approval on GMAIL_SEND_EMAIL", async () => {
     const provider = scriptedProvider([extractionResponse, composeResponse]);
 
     const result = await runHarnessPipeline(
@@ -214,7 +216,7 @@ describe("harness pipeline", () => {
     });
     expect(approval).toMatchObject({
       status: "PENDING",
-      requestedAction: "send_email",
+      requestedAction: "GMAIL_SEND_EMAIL",
       proposedInput: {
         to: "buyer@customer-abc.test",
         subject: "Quote for 500 x Product A",
@@ -243,7 +245,7 @@ describe("harness pipeline", () => {
       resumeProvider,
     );
 
-    // send_email genuinely runs here (the real tool, not a mock) — it
+    // GMAIL_SEND_EMAIL genuinely runs here (the real tool, not a mock) — it
     // fails because this test org has no Gmail integration connected,
     // same as the equivalent LOOP-mode test. That's the correct, realistic
     // outcome to assert: the call only happens post-approval, and a real
@@ -257,13 +259,13 @@ describe("harness pipeline", () => {
     expect(run.steps.at(-1)).toMatchObject({ stepType: "RUN_FAILED" });
 
     const sentToolCall = await prisma.toolCall.findFirst({
-      where: { agentRunId: paused.runId, toolName: "send_email" },
+      where: { agentRunId: paused.runId, toolName: "GMAIL_SEND_EMAIL" },
     });
     expect(sentToolCall).toMatchObject({ status: "FAILED" });
-    expect(sentToolCall?.error).toMatch(/no email account.*is connected/i);
+    expect(sentToolCall?.error).toMatch(/gmail is not connected/i);
   });
 
-  it("cancels cleanly on rejection — send_email never runs", async () => {
+  it("cancels cleanly on rejection — GMAIL_SEND_EMAIL never runs", async () => {
     const provider = scriptedProvider([extractionResponse, composeResponse]);
     const paused = await runHarnessPipeline(
       quoteAgent,
@@ -281,7 +283,7 @@ describe("harness pipeline", () => {
     expect(resumed.status).toBe("CANCELLED");
 
     const sentToolCall = await prisma.toolCall.findFirst({
-      where: { agentRunId: paused.runId, toolName: "send_email" },
+      where: { agentRunId: paused.runId, toolName: "GMAIL_SEND_EMAIL" },
     });
     expect(sentToolCall).toBeNull();
   });

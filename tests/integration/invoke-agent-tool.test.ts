@@ -87,14 +87,15 @@ describe("invoke_agent tool", () => {
       data: {
         organisationId,
         name: "Send Email Target",
-        description: "Has its own send_email grant, always approval-gated.",
+        description:
+          "Has its own GMAIL_SEND_EMAIL grant, always approval-gated.",
         instructions: "Send emails when asked.",
         model: "test-model",
         status: "ACTIVE",
       },
     });
     await prisma.agentTool.create({
-      data: { agentId: sendEmailTarget.id, toolName: "send_email" },
+      data: { agentId: sendEmailTarget.id, toolName: "GMAIL_SEND_EMAIL" },
     });
   });
 
@@ -201,7 +202,7 @@ describe("invoke_agent tool", () => {
     });
   });
 
-  it("the invoked agent's own tool grants and policy still apply — send_email still pauses for approval, never executes", async () => {
+  it("the invoked agent's own tool grants and policy still apply — GMAIL_SEND_EMAIL still pauses for approval, never executes", async () => {
     const provider = scriptedProvider([
       {
         content: "",
@@ -223,7 +224,7 @@ describe("invoke_agent tool", () => {
         toolCalls: [
           {
             id: "call_1",
-            name: "send_email",
+            name: "GMAIL_SEND_EMAIL",
             arguments: {
               to: "customer@example.test",
               subject: "Hello",
@@ -260,11 +261,11 @@ describe("invoke_agent tool", () => {
     });
     expect(targetRun?.status).toBe("WAITING_FOR_APPROVAL");
 
-    // Delegation must not be a way around the gate — send_email must never
+    // Delegation must not be a way around the gate — GMAIL_SEND_EMAIL must never
     // have actually executed, exactly as if this run had been triggered
     // directly rather than via invoke_agent.
     const sendEmailCalls = await prisma.toolCall.findMany({
-      where: { agentRunId: targetRun?.id, toolName: "send_email" },
+      where: { agentRunId: targetRun?.id, toolName: "GMAIL_SEND_EMAIL" },
     });
     expect(sendEmailCalls).toHaveLength(0);
 
@@ -273,7 +274,7 @@ describe("invoke_agent tool", () => {
     });
     expect(approval).toMatchObject({
       status: "PENDING",
-      requestedAction: "send_email",
+      requestedAction: "GMAIL_SEND_EMAIL",
     });
   });
 

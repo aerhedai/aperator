@@ -155,7 +155,7 @@ describe("install_workflow_template tool", () => {
         toolCalls: [
           {
             id: "call_0",
-            name: "create_calendar_event",
+            name: "OUTLOOK_CREATE_CALENDAR_EVENT",
             arguments: {
               subject: "Intro call",
               start: "2026-10-01T10:00:00Z",
@@ -183,7 +183,7 @@ describe("install_workflow_template tool", () => {
     });
 
     const approval = await prisma.approval.findFirst({
-      where: { requestedAction: "create_calendar_event" },
+      where: { requestedAction: "OUTLOOK_CREATE_CALENDAR_EVENT" },
     });
     expect(approval?.status).toBe("PENDING");
 

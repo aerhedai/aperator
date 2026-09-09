@@ -80,11 +80,10 @@ export const STEP_SNIPPETS: StepSnippet[] = [
     hint: "Call a granted tool. Always the last step — it ends the run.",
     step: {
       kind: "act",
-      tool: "send_email",
+      tool: "create_record",
       args: {
-        to: "{senderEmail}",
-        subject: "Re: your message",
-        body: "{body}",
+        recordType: "YourRecordType",
+        data: { name: "{value}" },
       },
     },
   },

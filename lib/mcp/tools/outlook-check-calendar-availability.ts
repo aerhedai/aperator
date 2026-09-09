@@ -23,16 +23,20 @@ const outputSchema = {
 };
 
 /**
- * Read-only (same readOnlyHint annotation as find_record/search_records
- * in lib/mcp/server.ts) — organisationId/actionIntegrationId bound at
- * server-construction time, never a tool argument (CLAUDE.md #22).
+ * Read-only (same readOnlyHint annotation as find_record/search_records in
+ * lib/mcp/server.ts) — organisationId/actionIntegrationId bound at
+ * server-construction time, never a tool argument (CLAUDE.md §22). Named
+ * with the OUTLOOK_ prefix even though it's the only calendar provider
+ * today, for consistency with every other provider-specific tool and so a
+ * future second calendar provider doesn't require renaming this one out
+ * from under existing grants.
  */
-export function createCheckCalendarAvailabilityTool(
+export function createOutlookCheckCalendarAvailabilityTool(
   organisationId: string,
   actionIntegrationId?: string | null,
 ) {
   return {
-    name: "check_calendar_availability",
+    name: "OUTLOOK_CHECK_CALENDAR_AVAILABILITY",
     description:
       "Find suggested meeting times for a set of attendees within a date range, using the connected Outlook Calendar's free/busy data.",
     inputSchema,

@@ -9,7 +9,7 @@ import { createRecord } from "@/tests/helpers/records";
 
 /**
  * Proves proposeAction's gate is genuinely driven by the tool being
- * called, not hardcoded to send_email — the direct motivation for
+ * called, not hardcoded to GMAIL_SEND_EMAIL — the direct motivation for
  * generalizing it (Agent.actionTool). Constructs a PipelineContext
  * directly rather than routing through a full pipeline, since the point
  * here is proposeAction's own branching, independent of any one
@@ -46,7 +46,7 @@ describe("proposeAction", () => {
       },
     });
     await prisma.agentTool.createMany({
-      data: ["find_record", "send_email"].map((toolName) => ({
+      data: ["find_record", "GMAIL_SEND_EMAIL"].map((toolName) => ({
         agentId: agent.id,
         toolName,
       })),
@@ -75,7 +75,7 @@ describe("proposeAction", () => {
     await prisma.$disconnect();
   });
 
-  it("pauses for approval when the configured actionTool is approval-gated (send_email)", async () => {
+  it("pauses for approval when the configured actionTool is approval-gated (GMAIL_SEND_EMAIL)", async () => {
     const run = await runRepository.createRun(
       organisationId,
       agent.id,
@@ -93,10 +93,10 @@ describe("proposeAction", () => {
         senderEmail: null,
         mcpClient,
         provider: { generateResponse: async () => ({ content: "" }) },
-        allowedTools: new Set(["find_customer", "send_email"]),
+        allowedTools: new Set(["find_record", "GMAIL_SEND_EMAIL"]),
       },
       {
-        toolName: "send_email",
+        toolName: "GMAIL_SEND_EMAIL",
         args: {
           to: "test@propose-action.test",
           subject: "Hello",
@@ -109,7 +109,7 @@ describe("proposeAction", () => {
     await mcpClient.close();
   });
 
-  it("completes immediately, no approval pause, when the configured actionTool is not approval-gated — proves the gate is driven by the tool, not hardcoded to send_email", async () => {
+  it("completes immediately, no approval pause, when the configured actionTool is not approval-gated — proves the gate is driven by the tool, not hardcoded to GMAIL_SEND_EMAIL", async () => {
     const run = await runRepository.createRun(
       organisationId,
       agent.id,
@@ -127,7 +127,7 @@ describe("proposeAction", () => {
         senderEmail: null,
         mcpClient,
         provider: { generateResponse: async () => ({ content: "" }) },
-        allowedTools: new Set(["find_record", "send_email"]),
+        allowedTools: new Set(["find_record", "GMAIL_SEND_EMAIL"]),
       },
       {
         toolName: "find_record",

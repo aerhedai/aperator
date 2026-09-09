@@ -38,8 +38,8 @@ describe("entity_status_signal pipeline", () => {
       "find_record",
       "create_record",
       "update_record",
-      "create_folder",
-      "send_email",
+      "GOOGLE_DRIVE_CREATE_FOLDER",
+      "GMAIL_SEND_EMAIL",
     ];
     await prisma.agentTool.createMany({
       data: tools.map((toolName) => ({ agentId: agent.id, toolName })),
@@ -247,7 +247,7 @@ describe("entity_status_signal pipeline", () => {
       include: { steps: { include: { toolCall: true } } },
     });
     const folderCall = run.steps.find(
-      (s) => s.toolCall?.toolName === "create_folder",
+      (s) => s.toolCall?.toolName === "GOOGLE_DRIVE_CREATE_FOLDER",
     );
     expect(folderCall?.toolCall?.status).toBe("FAILED");
     expect(folderCall?.toolCall?.error).toMatch(
@@ -289,7 +289,7 @@ describe("entity_status_signal pipeline", () => {
     });
     expect(approval).toMatchObject({
       status: "PENDING",
-      requestedAction: "send_email",
+      requestedAction: "GMAIL_SEND_EMAIL",
       proposedInput: {
         to: "buyer@customer-abc.test",
         subject: "Job 1005 received",

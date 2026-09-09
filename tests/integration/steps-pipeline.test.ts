@@ -57,7 +57,7 @@ describe("steps pipeline", () => {
       "search_records",
       "create_record",
       "update_record",
-      "send_email",
+      "GMAIL_SEND_EMAIL",
     ];
     await prisma.agentTool.createMany({
       data: tools.map((toolName) => ({ agentId: agent.id, toolName })),
@@ -184,7 +184,7 @@ describe("steps pipeline", () => {
         },
         {
           kind: "act",
-          tool: "send_email",
+          tool: "GMAIL_SEND_EMAIL",
           args: {
             to: "buyer@steps.test",
             subject: "Your quote",
@@ -210,7 +210,7 @@ describe("steps pipeline", () => {
       where: { agentRunId: result.runId },
     });
     // The computed figure reached the proposed action, not a model guess.
-    expect(approval?.requestedAction).toBe("send_email");
+    expect(approval?.requestedAction).toBe("GMAIL_SEND_EMAIL");
   });
 
   it("continues past an optional lookup miss, and a branch can test it", async () => {
@@ -571,7 +571,7 @@ describe("steps pipeline", () => {
       steps: [
         {
           kind: "act",
-          tool: "send_email",
+          tool: "GMAIL_SEND_EMAIL",
           args: { to: "a@b.test", subject: "x", body: "y" },
         },
       ],
@@ -586,7 +586,7 @@ describe("steps pipeline", () => {
 
     expect(result.status).toBe("FAILED");
     const call = await prisma.toolCall.findFirst({
-      where: { agentRunId: result.runId, toolName: "send_email" },
+      where: { agentRunId: result.runId, toolName: "GMAIL_SEND_EMAIL" },
     });
     expect(call?.error).toMatch(/does not have access/i);
   });
@@ -603,7 +603,7 @@ describe("steps pipeline", () => {
         },
         {
           kind: "act",
-          tool: "send_email",
+          tool: "GMAIL_SEND_EMAIL",
           args: { to: "a@b.test", subject: "x", body: "{body}" },
         },
       ],

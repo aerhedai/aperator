@@ -786,7 +786,7 @@ describe("multi-account integrations", () => {
       expect(result?.id).toBe(outlook.id);
     });
 
-    it("getValidEmailAccessToken resolves to whichever email provider is actually connected", async () => {
+    it("resolveEmailProvider resolves to whichever email provider is actually connected", async () => {
       await connectOutlookAccount(
         "only-outlook@acme.test",
         "access-outlook-only",
@@ -794,16 +794,13 @@ describe("multi-account integrations", () => {
       );
 
       const result =
-        await integrationService.getValidEmailAccessToken(organisationId);
-      expect(result).toEqual({
-        provider: "outlook",
-        accessToken: "access-outlook-only",
-      });
+        await integrationService.resolveEmailProvider(organisationId);
+      expect(result).toBe("outlook");
     });
 
-    it("getValidEmailAccessToken throws a clear error when neither Gmail nor Outlook is connected", async () => {
+    it("resolveEmailProvider throws a clear error when neither Gmail nor Outlook is connected", async () => {
       await expect(
-        integrationService.getValidEmailAccessToken(organisationId),
+        integrationService.resolveEmailProvider(organisationId),
       ).rejects.toThrow(/no email account.*is connected/i);
     });
 
