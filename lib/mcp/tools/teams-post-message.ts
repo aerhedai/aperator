@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import { getValidTeamsAccessToken } from "@/lib/integrations/integration-service";
 import { sendTeamsChannelMessage } from "@/lib/integrations/teams/client";
+import { ensureScopeAvailable } from "@/lib/mcp/tools/shared/ensure-scope-available";
+import { translateScopeError } from "@/lib/mcp/tools/shared/translate-scope-error";
 import { toolError, toolSuccess } from "@/lib/mcp/tool-result";
 
 const inputSchema = {
@@ -50,6 +52,14 @@ export function createTeamsPostMessageTool(
       message: string;
     }) => {
       try {
+        const scopeError = await ensureScopeAvailable(
+          organisationId,
+          "teams",
+          teamsIntegrationId,
+          "TEAMS_POST_MESSAGE",
+        );
+        if (scopeError) return toolError(scopeError);
+
         const accessToken = await getValidTeamsAccessToken(
           organisationId,
           teamsIntegrationId,
@@ -61,11 +71,7 @@ export function createTeamsPostMessageTool(
         });
         return toolSuccess({ sent: true });
       } catch (error) {
-        return toolError(
-          error instanceof Error
-            ? error.message
-            : "Failed to send Teams notification.",
-        );
+        return toolError(translateScopeError(error));
       }
     },
   };

@@ -6,6 +6,8 @@ import {
   attachmentRefSchema,
   resolveStorageAttachment,
 } from "@/lib/mcp/tools/shared/resolve-storage-attachment";
+import { ensureScopeAvailable } from "@/lib/mcp/tools/shared/ensure-scope-available";
+import { translateScopeError } from "@/lib/mcp/tools/shared/translate-scope-error";
 import { toolError, toolSuccess } from "@/lib/mcp/tool-result";
 
 const inputSchema = {
@@ -62,6 +64,14 @@ export function createGmailSendEmailTool(
       attachments?: z.infer<typeof attachmentRefSchema>[];
     }) => {
       try {
+        const scopeError = await ensureScopeAvailable(
+          organisationId,
+          "gmail",
+          actionIntegrationId,
+          "GMAIL_SEND_EMAIL",
+        );
+        if (scopeError) return toolError(scopeError);
+
         const resolvedAttachments = attachments
           ? await Promise.all(
               attachments.map((ref) =>
@@ -82,9 +92,7 @@ export function createGmailSendEmailTool(
         });
         return toolSuccess({ sent: true });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Failed to send email.";
-        return toolError(message);
+        return toolError(translateScopeError(error));
       }
     },
   };

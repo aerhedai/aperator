@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import { getSlackBotToken } from "@/lib/integrations/integration-service";
 import { postSlackMessage } from "@/lib/integrations/slack/client";
+import { ensureScopeAvailable } from "@/lib/mcp/tools/shared/ensure-scope-available";
+import { translateScopeError } from "@/lib/mcp/tools/shared/translate-scope-error";
 import { toolError, toolSuccess } from "@/lib/mcp/tool-result";
 
 const inputSchema = {
@@ -40,6 +42,14 @@ export function createSlackPostMessageTool(
       message: string;
     }) => {
       try {
+        const scopeError = await ensureScopeAvailable(
+          organisationId,
+          "slack",
+          slackIntegrationId,
+          "SLACK_POST_MESSAGE",
+        );
+        if (scopeError) return toolError(scopeError);
+
         const botToken = await getSlackBotToken(
           organisationId,
           slackIntegrationId,
@@ -47,11 +57,7 @@ export function createSlackPostMessageTool(
         await postSlackMessage(botToken, { channel, text: message });
         return toolSuccess({ sent: true });
       } catch (error) {
-        return toolError(
-          error instanceof Error
-            ? error.message
-            : "Failed to send Slack notification.",
-        );
+        return toolError(translateScopeError(error));
       }
     },
   };

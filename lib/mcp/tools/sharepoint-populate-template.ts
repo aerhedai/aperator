@@ -12,6 +12,8 @@ import {
   DOCX_MIME_TYPE,
   renderDocxTemplate,
 } from "@/lib/mcp/tools/shared/render-docx-template";
+import { ensureScopeAvailable } from "@/lib/mcp/tools/shared/ensure-scope-available";
+import { translateScopeError } from "@/lib/mcp/tools/shared/translate-scope-error";
 import { toolError, toolSuccess } from "@/lib/mcp/tool-result";
 
 const inputSchema = {
@@ -70,6 +72,14 @@ export function createSharePointPopulateTemplateTool(organisationId: string) {
       replace: boolean;
     }) => {
       try {
+        const scopeError = await ensureScopeAvailable(
+          organisationId,
+          "sharepoint",
+          undefined,
+          "SHAREPOINT_POPULATE_TEMPLATE",
+        );
+        if (scopeError) return toolError(scopeError);
+
         const accessToken = await getValidSharePointAccessToken(organisationId);
         const site = await resolveSite(accessToken, siteName);
         if (!site) {
@@ -100,11 +110,7 @@ export function createSharePointPopulateTemplateTool(organisationId: string) {
         );
         return toolSuccess({ fileId: file.id });
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to populate the document template.";
-        return toolError(message);
+        return toolError(translateScopeError(error));
       }
     },
   };

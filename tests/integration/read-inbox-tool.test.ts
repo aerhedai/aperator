@@ -68,6 +68,7 @@ describe("GMAIL_READ_INBOX tool", () => {
         provider: "gmail",
         name: "test@company.test",
         credentials: connectedGmailCredentials(),
+        config: { grantedScopes: ["https://mail.google.com/"] },
         expiresAt: new Date(Date.now() + 60 * 60 * 1000),
       },
     });
@@ -160,6 +161,7 @@ describe("GMAIL_READ_INBOX tool", () => {
         provider: "gmail",
         name: "test@company.test",
         credentials: connectedGmailCredentials(),
+        config: { grantedScopes: ["https://mail.google.com/"] },
         expiresAt: new Date(Date.now() + 60 * 60 * 1000),
       },
     });

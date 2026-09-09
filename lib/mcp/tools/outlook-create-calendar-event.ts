@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import { getValidOutlookCalendarAccessToken } from "@/lib/integrations/integration-service";
 import { createCalendarEvent } from "@/lib/integrations/outlook-calendar/client";
+import { ensureScopeAvailable } from "@/lib/mcp/tools/shared/ensure-scope-available";
+import { translateScopeError } from "@/lib/mcp/tools/shared/translate-scope-error";
 import { toolError, toolSuccess } from "@/lib/mcp/tool-result";
 
 const inputSchema = {
@@ -49,6 +51,14 @@ export function createOutlookCreateCalendarEventTool(
       attendees: string[];
     }) => {
       try {
+        const scopeError = await ensureScopeAvailable(
+          organisationId,
+          "outlook-calendar",
+          actionIntegrationId,
+          "OUTLOOK_CREATE_CALENDAR_EVENT",
+        );
+        if (scopeError) return toolError(scopeError);
+
         const accessToken = await getValidOutlookCalendarAccessToken(
           organisationId,
           actionIntegrationId,
@@ -61,11 +71,7 @@ export function createOutlookCreateCalendarEventTool(
         });
         return toolSuccess({ created: true, eventId: event.id });
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to create calendar event.";
-        return toolError(message);
+        return toolError(translateScopeError(error));
       }
     },
   };

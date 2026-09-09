@@ -5,6 +5,8 @@ import {
   uploadOrReplaceFile,
 } from "@/lib/integrations/google-drive/client";
 import { getValidGoogleDriveAccessToken } from "@/lib/integrations/integration-service";
+import { ensureScopeAvailable } from "@/lib/mcp/tools/shared/ensure-scope-available";
+import { translateScopeError } from "@/lib/mcp/tools/shared/translate-scope-error";
 import { toolError, toolSuccess } from "@/lib/mcp/tool-result";
 
 const inputSchema = {
@@ -56,6 +58,14 @@ export function createGoogleDriveSaveFileTool(organisationId: string) {
       replace: boolean;
     }) => {
       try {
+        const scopeError = await ensureScopeAvailable(
+          organisationId,
+          "google-drive",
+          undefined,
+          "GOOGLE_DRIVE_SAVE_FILE",
+        );
+        if (scopeError) return toolError(scopeError);
+
         const content = Buffer.from(contentBase64, "base64");
         const accessToken =
           await getValidGoogleDriveAccessToken(organisationId);
@@ -70,9 +80,7 @@ export function createGoogleDriveSaveFileTool(organisationId: string) {
         );
         return toolSuccess({ fileId: file.id });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Failed to save the file.";
-        return toolError(message);
+        return toolError(translateScopeError(error));
       }
     },
   };

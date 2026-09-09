@@ -15,13 +15,19 @@ export default async function EditAgentPage({
 }: PageProps<"/agents/[id]/edit">) {
   const { id } = await params;
   const organisation = await getCurrentOrganisation();
-  const [agent, templates, gmailIntegrations, mcpIntegrations] =
-    await Promise.all([
-      agentService.getAgent(organisation.id, id),
-      templateService.listTemplates(organisation.id),
-      integrationService.listIntegrationsByProvider(organisation.id, "gmail"),
-      integrationService.listIntegrationsByProvider(organisation.id, "mcp"),
-    ]);
+  const [
+    agent,
+    templates,
+    gmailIntegrations,
+    mcpIntegrations,
+    allIntegrations,
+  ] = await Promise.all([
+    agentService.getAgent(organisation.id, id),
+    templateService.listTemplates(organisation.id),
+    integrationService.listIntegrationsByProvider(organisation.id, "gmail"),
+    integrationService.listIntegrationsByProvider(organisation.id, "mcp"),
+    integrationService.listIntegrations(organisation.id),
+  ]);
 
   if (!agent) {
     notFound();
@@ -45,6 +51,18 @@ export default async function EditAgentPage({
     tools: (integration.config as { tools?: DiscoveredMcpTool[] }).tools ?? [],
   }));
 
+  // Scope-based tool availability (docs/provider-specific-tools-design.md)
+  // needs every connected account's provider and granted scopes, not just
+  // Gmail's — mcp connections are excluded since their tools are handled
+  // entirely separately, via mcpConnections above.
+  const connectedIntegrations = allIntegrations
+    .filter((i) => i.provider !== integrationService.MCP_PROVIDER)
+    .map((i) => ({
+      provider: i.provider,
+      grantedScopes:
+        (i.config as { grantedScopes?: string[] } | null)?.grantedScopes ?? [],
+    }));
+
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-xl font-semibold">Edit {agent.name}</h1>
@@ -60,6 +78,7 @@ export default async function EditAgentPage({
           id: i.id,
           name: i.name,
         }))}
+        connectedIntegrations={connectedIntegrations}
         initialStepsConfig={initialStepsConfig}
         mcpConnections={mcpConnections}
       />

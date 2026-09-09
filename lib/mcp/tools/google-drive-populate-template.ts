@@ -10,6 +10,8 @@ import {
   DOCX_MIME_TYPE,
   renderDocxTemplate,
 } from "@/lib/mcp/tools/shared/render-docx-template";
+import { ensureScopeAvailable } from "@/lib/mcp/tools/shared/ensure-scope-available";
+import { translateScopeError } from "@/lib/mcp/tools/shared/translate-scope-error";
 import { toolError, toolSuccess } from "@/lib/mcp/tool-result";
 
 const inputSchema = {
@@ -67,6 +69,14 @@ export function createGoogleDrivePopulateTemplateTool(organisationId: string) {
       replace: boolean;
     }) => {
       try {
+        const scopeError = await ensureScopeAvailable(
+          organisationId,
+          "google-drive",
+          undefined,
+          "GOOGLE_DRIVE_POPULATE_TEMPLATE",
+        );
+        if (scopeError) return toolError(scopeError);
+
         const accessToken =
           await getValidGoogleDriveAccessToken(organisationId);
         const template = await resolveAndDownloadFile(
@@ -85,11 +95,7 @@ export function createGoogleDrivePopulateTemplateTool(organisationId: string) {
         );
         return toolSuccess({ fileId: file.id });
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to populate the document template.";
-        return toolError(message);
+        return toolError(translateScopeError(error));
       }
     },
   };
