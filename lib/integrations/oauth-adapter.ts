@@ -21,6 +21,15 @@ export interface OAuthExchangeResult {
   credentials: Record<string, unknown>;
   // Integration.expiresAt — null for tokens that don't expire.
   expiresAt: Date | null;
+  // The scope(s) the provider actually granted — can be a subset of what
+  // was requested if the user declined part of the consent screen. Folded
+  // into Integration.config by connectOAuthAccount (plaintext — granted
+  // scope isn't secret) rather than stored as its own column, same
+  // reasoning as every other provider-specific identifying field. Optional
+  // so existing test fixtures that predate this field don't need updating;
+  // every real adapter populates it. connectOAuthAccount defaults an
+  // absent value to [] before storing.
+  grantedScopes?: string[];
 }
 
 export interface OAuthAdapter {

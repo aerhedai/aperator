@@ -42,7 +42,36 @@ describe("exchangeSlackCode", () => {
       expiresAt: null,
       userAccessToken: null,
       authedUserId: null,
+      grantedScopes: [],
     });
+  });
+
+  it("combines bot and user granted scopes into one deduped list", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            ok: true,
+            access_token: "xoxb-fake-token",
+            bot_user_id: "U123ABC",
+            team: { id: "T123ABC", name: "Acme Workspace" },
+            scope: "chat:write,chat:write.public",
+            authed_user: {
+              id: "U456DEF",
+              access_token: "xoxp-fake-token",
+              scope: "chat:write,channels:read",
+            },
+          }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const tokens = await exchangeSlackCode("fake-code");
+
+    expect(tokens.grantedScopes.sort()).toEqual(
+      ["chat:write", "chat:write.public", "channels:read"].sort(),
+    );
   });
 
   it("captures authed_user's access token when the user granted user_scope permissions", async () => {

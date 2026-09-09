@@ -27,7 +27,7 @@ round: Slack's official server is GA and covers sending; Gmail's is
 Developer Preview and currently has no send tool; Outlook/Teams have no
 official server at all, only unofficial community ones). That direction is
 explicitly **not** what this spec builds — every provider gets hand-written
-code, always, no per-provider MCP-maturity check. What *does* carry over
+code, always, no per-provider MCP-maturity check. What _does_ carry over
 from that exploration is the naming shape: each provider's capability gets
 its own distinctly-named tool, the same way a real MCP server would expose
 `GMAIL_SEND_EMAIL` as its own tool rather than one server exposing a
@@ -36,7 +36,7 @@ generic `send_email` that secretly talks to whichever backend is configured.
 This spec is unrelated to, and does not change, the existing generic
 "connect any external MCP server" feature
 (`docs/superpowers/specs/2026-09-07-external-mcp-connections-design.md`).
-That feature is about a *business* plugging in a system Aperator has no
+That feature is about a _business_ plugging in a system Aperator has no
 special knowledge of. This spec is about how Aperator implements its own
 seven first-party providers.
 
@@ -69,16 +69,16 @@ split visible everywhere the name appears, not just in a design doc.
 
 **Full before/after tool inventory:**
 
-| Today (shared, branching) | Becomes |
-|---|---|
-| `send_email` | `GMAIL_SEND_EMAIL`, `OUTLOOK_SEND_EMAIL` |
-| `read_inbox` | `GMAIL_READ_INBOX`, `OUTLOOK_READ_INBOX` |
-| `notify_channel` | `SLACK_POST_MESSAGE`, `TEAMS_POST_MESSAGE` |
-| `check_calendar_availability` | `OUTLOOK_CHECK_CALENDAR_AVAILABILITY` |
-| `create_calendar_event` | `OUTLOOK_CREATE_CALENDAR_EVENT` |
-| `create_folder` | `GOOGLE_DRIVE_CREATE_FOLDER`, `SHAREPOINT_CREATE_FOLDER` |
-| `save_file` | `GOOGLE_DRIVE_SAVE_FILE`, `SHAREPOINT_SAVE_FILE` |
-| `populate_template` | `GOOGLE_DRIVE_POPULATE_TEMPLATE`, `SHAREPOINT_POPULATE_TEMPLATE` |
+| Today (shared, branching)     | Becomes                                                          |
+| ----------------------------- | ---------------------------------------------------------------- |
+| `send_email`                  | `GMAIL_SEND_EMAIL`, `OUTLOOK_SEND_EMAIL`                         |
+| `read_inbox`                  | `GMAIL_READ_INBOX`, `OUTLOOK_READ_INBOX`                         |
+| `notify_channel`              | `SLACK_POST_MESSAGE`, `TEAMS_POST_MESSAGE`                       |
+| `check_calendar_availability` | `OUTLOOK_CHECK_CALENDAR_AVAILABILITY`                            |
+| `create_calendar_event`       | `OUTLOOK_CREATE_CALENDAR_EVENT`                                  |
+| `create_folder`               | `GOOGLE_DRIVE_CREATE_FOLDER`, `SHAREPOINT_CREATE_FOLDER`         |
+| `save_file`                   | `GOOGLE_DRIVE_SAVE_FILE`, `SHAREPOINT_SAVE_FILE`                 |
+| `populate_template`           | `GOOGLE_DRIVE_POPULATE_TEMPLATE`, `SHAREPOINT_POPULATE_TEMPLATE` |
 
 `check_calendar_availability`/`create_calendar_event` only have one real
 provider today (Outlook Calendar), but get the provider prefix anyway for
@@ -120,7 +120,7 @@ account is rejected at save time, not discovered at run time.
 **Tool availability is scope-aware, not just connection-aware.** Today, a
 provider-specific tool being grantable only requires the provider to be
 connected at all. This design adds a second gate: whether the specific
-bound account's *actually-granted* OAuth scope covers that tool.
+bound account's _actually-granted_ OAuth scope covers that tool.
 "Actually-granted" matters because a user can partially decline scopes on
 a consent screen — requested and granted are not guaranteed to match, and
 none of the three OAuth exchange functions (`exchangeGmailCode`,

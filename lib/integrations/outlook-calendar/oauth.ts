@@ -60,6 +60,7 @@ export const outlookCalendarOAuthAdapter: OAuthAdapter = {
         refreshToken: tokens.refreshToken,
       },
       expiresAt: tokens.expiresAt,
+      grantedScopes: tokens.scope ? tokens.scope.split(" ") : [],
     };
   },
 };

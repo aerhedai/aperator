@@ -121,6 +121,29 @@ describe("exchangeCodeForTokens", () => {
     expect(tokens.email).toBe("fallback@example.test");
   });
 
+  it("captures the actually-granted scope from the token response", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            access_token: "access-1",
+            refresh_token: "refresh-1",
+            expires_in: 3600,
+            scope: "openid offline_access Mail.Read",
+          }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const tokens = await exchangeCodeForTokens(
+      "code-1",
+      "http://localhost:3000/api/integrations/outlook/callback",
+    );
+
+    expect(tokens.scope).toBe("openid offline_access Mail.Read");
+  });
+
   it("throws a clear reconnect error when no refresh_token is returned", async () => {
     const fetchMock = vi.fn(
       async () =>
