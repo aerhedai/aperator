@@ -220,24 +220,47 @@ translated "Tool access denied" error rather than the provider's raw one.
 
 This is a live, deployed application (CLAUDE.md §2) — existing
 organisations already have real `AgentTool` rows granting `send_email`,
-`notify_channel`, etc. A migration script, run once:
+`notify_channel`, etc. A real Prisma migration
+(`20260909151944_migrate_provider_specific_tool_grants`), following the
+exact insert-then-delete, `ON CONFLICT DO NOTHING` pattern
+`20260903120000_consolidate_tool_names` already established for the same
+kind of tool-name retirement — applied automatically by `prisma migrate
+deploy` on the next deploy, not a script someone has to remember to run.
 
-1. For every `AgentTool` row whose `toolName` is one of the eight shared
-   names being retired, resolve that row's agent's `actionIntegrationId`
-   (or, if null, the organisation's default-connected account for that
-   tool's capability — same fallback `getDefaultEmailIntegration`-style
-   logic already uses today).
-2. Rewrite the row's `toolName` to the corresponding provider-specific name
-   for that resolved account's provider.
-3. Any row that can't resolve a provider (the bound/default account was
-   since disconnected) is flagged in the migration's output for manual
-   review rather than silently dropped or guessed at — an agent losing a
-   grant silently is worse than a migration that takes a manual look at a
-   handful of rows.
+Two resolution shapes, not one, once the actual SQL was worked out:
 
-Only once this migration has run cleanly against production do the eight
-old shared tool names get removed from `TOOL_REGISTRY` and their files
-deleted.
+- **Calendar tools** (`check_calendar_availability`, `create_calendar_event`)
+  are a plain 1:1 rename — Outlook Calendar is the only calendar provider
+  that has ever existed.
+- **Email tools** (`send_email`, `read_inbox`) resolve via
+  `Agent.actionIntegrationId`: `agent-service.ts`'s
+  `ACTION_ACCOUNT_PROVIDERS` has only ever allowed that field to be a
+  Gmail or Outlook account, so a bound account unambiguously picks one.
+  Unbound agents get both.
+- **Chat and storage tools** (`notify_channel`; `create_folder`,
+  `save_file`, `populate_template`) have no per-agent signal to resolve
+  from at all — which platform/provider they reached was always a
+  _call-time_ argument, never anything stored per-agent — so every agent
+  holding one of these grants gets both provider-specific replacements
+  unconditionally.
+
+This turned out simpler than originally planned: no row is ever
+unresolvable, so the "flag for manual review" step this section originally
+called for wasn't needed. Granting both when a resolution is genuinely
+ambiguous is safe, not just convenient — every provider-specific tool
+already fails cleanly with its own "not connected" error at call time, so
+an unusable extra grant costs nothing.
+
+Verified directly, not just read: seeded fixture agents in each binding
+state (Gmail-bound, Outlook-bound, unbound) against a real local Postgres
+instance, ran the migration for real, and confirmed each agent's resulting
+grants matched exactly what's described above before this migration was
+considered done.
+
+Sequencing note: in practice the tool split (removing the eight old names
+from `TOOL_REGISTRY`) landed in a PR before this migration existed, since
+neither `dev` nor `main` had received either change yet — this migration
+closes that gap before the combined work reaches `main`, not after.
 
 ## Testing
 
