@@ -146,6 +146,107 @@ export async function ensureFolderPath(
   return parentItemId;
 }
 
+export interface SharePointFileSummary {
+  id: string;
+  name: string;
+  isFolder: boolean;
+}
+
+interface GraphDriveItem {
+  id: string;
+  name: string;
+  folder?: unknown;
+}
+
+// Graph's search action on a drive's root — covers file names and, for
+// common document formats, their content, same breadth as Google Drive's
+// fullText search.
+export async function searchFiles(
+  accessToken: string,
+  driveId: string,
+  query: string,
+  maxResults = 10,
+): Promise<SharePointFileSummary[]> {
+  const response = await graphFetch(
+    accessToken,
+    `/drives/${driveId}/root/search(q='${encodeURIComponent(query)}')?$top=${maxResults}`,
+  );
+  const data = (await response.json()) as { value: GraphDriveItem[] };
+  return data.value.map((item) => ({
+    id: item.id,
+    name: item.name,
+    isFolder: item.folder !== undefined,
+  }));
+}
+
+// Read-only folder-path walk — fails clearly on a wrong path, same
+// reasoning as resolveAndDownloadFile's own walk, extracted so listing a
+// folder doesn't need to also know how to find a file inside it.
+export async function resolveFolderPath(
+  accessToken: string,
+  driveId: string,
+  pathSegments: string[],
+): Promise<string> {
+  let parentItemId = "root";
+  for (const segment of pathSegments) {
+    const found = await findFolderInFolder(
+      accessToken,
+      driveId,
+      parentItemId,
+      segment,
+    );
+    if (!found) {
+      throw new Error(
+        `Folder "${segment}" was not found in "${pathSegments.join("/")}".`,
+      );
+    }
+    parentItemId = found;
+  }
+  return parentItemId;
+}
+
+export async function listFolderChildren(
+  accessToken: string,
+  driveId: string,
+  folderItemId: string,
+): Promise<SharePointFileSummary[]> {
+  const response = await graphFetch(
+    accessToken,
+    `/drives/${driveId}/items/${folderItemId}/children`,
+  );
+  const data = (await response.json()) as { value: GraphDriveItem[] };
+  return data.value.map((item) => ({
+    id: item.id,
+    name: item.name,
+    isFolder: item.folder !== undefined,
+  }));
+}
+
+export async function getFileMetadata(
+  accessToken: string,
+  driveId: string,
+  itemId: string,
+): Promise<{ name: string }> {
+  const response = await graphFetch(
+    accessToken,
+    `/drives/${driveId}/items/${itemId}?$select=name`,
+  );
+  return response.json();
+}
+
+// A plain DELETE on a SharePoint drive item sends it to the site's own
+// Recycle Bin — SharePoint's own reversible behavior, not a permanent
+// delete, the same safety margin Google Drive's trashFile gives.
+export async function deleteFile(
+  accessToken: string,
+  driveId: string,
+  itemId: string,
+): Promise<void> {
+  await graphFetch(accessToken, `/drives/${driveId}/items/${itemId}`, {
+    method: "DELETE",
+  });
+}
+
 // Graph's simple upload (PUT .../content) — fine for the email bodies and
 // typical attachments this is built for; anything over ~4MB needs a
 // resumable upload session instead, not implemented yet. Path-addressed,

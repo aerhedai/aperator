@@ -168,6 +168,116 @@ export async function getGmailAttachmentContent(
   return Buffer.from(data.data, "base64url");
 }
 
+// Same GMAIL_INBOX_LABEL boundary as listUnreadInboxMessages (CLAUDE.md
+// §14) — the caller's own query is ANDed with the label restriction, never
+// used on its own, so a search can never reach outside the mailbox this
+// app is actually scoped to regardless of what query text an agent
+// supplies.
+export async function searchInboxMessages(
+  accessToken: string,
+  query: string,
+  maxResults = 10,
+): Promise<GmailMessageSummary[]> {
+  const params = new URLSearchParams({
+    q: `label:${GMAIL_INBOX_LABEL} ${query}`,
+    maxResults: String(maxResults),
+  });
+  const response = await gmailFetch(
+    accessToken,
+    `/messages?${params.toString()}`,
+  );
+  const data = (await response.json()) as { messages?: GmailMessageSummary[] };
+  return data.messages ?? [];
+}
+
+// Removing the INBOX label is Gmail's actual "archive" operation — the
+// message still exists (findable by label/search), it just stops
+// appearing in the inbox view. Reversible (re-adding INBOX un-archives
+// it), which is why this isn't approval-gated the way a customer-visible
+// action is.
+export async function archiveGmailMessage(
+  accessToken: string,
+  messageId: string,
+): Promise<void> {
+  await gmailFetch(accessToken, `/messages/${messageId}/modify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ removeLabelIds: ["INBOX"] }),
+  });
+}
+
+// A draft is never sent — it sits in the mailbox for a human to review and
+// send themselves, or for GMAIL_SEND_EMAIL to be called separately once
+// approved. This is why creating one doesn't need the same approval gate
+// GMAIL_SEND_EMAIL does: nothing customer-visible happens until a human
+// (or an already-gated tool call) acts on it.
+export async function createGmailDraft(
+  accessToken: string,
+  params: { to: string; subject: string; body: string },
+): Promise<{ id: string }> {
+  const response = await gmailFetch(accessToken, "/drafts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: { raw: encodeMimeMessage(params) },
+    }),
+  });
+  const data = (await response.json()) as { id: string };
+  return { id: data.id };
+}
+
+interface GmailLabel {
+  id: string;
+  name: string;
+}
+
+async function findLabel(
+  accessToken: string,
+  name: string,
+): Promise<string | null> {
+  const response = await gmailFetch(accessToken, "/labels");
+  const data = (await response.json()) as { labels?: GmailLabel[] };
+  return data.labels?.find((label) => label.name === name)?.id ?? null;
+}
+
+async function createLabel(accessToken: string, name: string): Promise<string> {
+  const response = await gmailFetch(accessToken, "/labels", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name,
+      labelListVisibility: "labelShow",
+      messageListVisibility: "show",
+    }),
+  });
+  const data = (await response.json()) as { id: string };
+  return data.id;
+}
+
+// Same find-or-create semantics as Drive's resolveOrCreateFolder — a
+// business names a label like "Needs Follow-up" without having to create
+// it in Gmail's own UI first.
+export async function resolveOrCreateLabel(
+  accessToken: string,
+  name: string,
+): Promise<string> {
+  const existing = await findLabel(accessToken, name);
+  if (existing) return existing;
+  return createLabel(accessToken, name);
+}
+
+export async function applyGmailLabel(
+  accessToken: string,
+  messageId: string,
+  labelId: string,
+): Promise<void> {
+  await gmailFetch(accessToken, `/messages/${messageId}/modify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ addLabelIds: [labelId] }),
+  });
+}
+
 export async function markGmailMessageRead(
   accessToken: string,
   messageId: string,

@@ -31,6 +31,51 @@ describe("requiresApprovalBeforeExecution", () => {
     ).toBe(true);
   });
 
+  it("requires approval for the newer consequential tools (calendar update/cancel, Drive/SharePoint delete/share)", async () => {
+    for (const toolName of [
+      "OUTLOOK_UPDATE_CALENDAR_EVENT",
+      "OUTLOOK_CANCEL_CALENDAR_EVENT",
+      "GOOGLE_DRIVE_DELETE_FILE",
+      "GOOGLE_DRIVE_SHARE_FILE",
+      "SHAREPOINT_DELETE_FILE",
+    ]) {
+      expect(await requiresApprovalBeforeExecution(toolName, ORG_ID)).toBe(
+        true,
+      );
+    }
+  });
+
+  it("does not require approval for the newer read-only or low-consequence tools", async () => {
+    for (const toolName of [
+      "GMAIL_SEARCH_INBOX",
+      "GMAIL_ARCHIVE_MESSAGE",
+      "GMAIL_CREATE_DRAFT",
+      "GMAIL_APPLY_LABEL",
+      "OUTLOOK_SEARCH_INBOX",
+      "OUTLOOK_ARCHIVE_MESSAGE",
+      "OUTLOOK_CREATE_DRAFT",
+      "OUTLOOK_FIND_CONTACT",
+      "OUTLOOK_CREATE_CONTACT",
+      "OUTLOOK_LIST_CALENDAR_EVENTS",
+      "TEAMS_LIST_CHANNELS",
+      "TEAMS_READ_CHANNEL_MESSAGES",
+      "GOOGLE_DRIVE_SEARCH_FILES",
+      "GOOGLE_DRIVE_LIST_FOLDER",
+      "GOOGLE_DRIVE_GET_FILE",
+      "SHAREPOINT_SEARCH_FILES",
+      "SHAREPOINT_LIST_FOLDER",
+      "SHAREPOINT_GET_FILE",
+      "SLACK_SEARCH_MESSAGES",
+      "SLACK_LIST_CHANNELS",
+      "SLACK_READ_CHANNEL_HISTORY",
+      "SLACK_GET_USER_INFO",
+    ]) {
+      expect(await requiresApprovalBeforeExecution(toolName, ORG_ID)).toBe(
+        false,
+      );
+    }
+  });
+
   it("does not require approval for SLACK_POST_MESSAGE or TEAMS_POST_MESSAGE", async () => {
     expect(
       await requiresApprovalBeforeExecution("SLACK_POST_MESSAGE", ORG_ID),

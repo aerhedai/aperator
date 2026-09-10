@@ -150,6 +150,112 @@ export async function resolveAndDownloadFile(
   return downloadFile(accessToken, fileId);
 }
 
+export interface DriveFileSummary {
+  id: string;
+  name: string;
+  mimeType: string;
+}
+
+// Drive's fullText search covers file names and, for Google-native and
+// common document formats, their actual content — broader than
+// resolveAndDownloadFile's exact-path lookup, for "find the file about
+// X" rather than "I already know exactly where it is."
+export async function searchFiles(
+  accessToken: string,
+  query: string,
+  maxResults = 10,
+): Promise<DriveFileSummary[]> {
+  const q = [
+    `fullText contains '${escapeDriveQueryValue(query)}'`,
+    "trashed=false",
+  ].join(" and ");
+  const params = new URLSearchParams({
+    q,
+    fields: "files(id,name,mimeType)",
+    pageSize: String(maxResults),
+  });
+  const response = await driveFetch(accessToken, `/files?${params.toString()}`);
+  const data = (await response.json()) as { files?: DriveFileSummary[] };
+  return data.files ?? [];
+}
+
+// Read-only folder-path walk — fails clearly on a wrong path rather than
+// creating anything, same reasoning as resolveAndDownloadFile's own
+// folder walk (this is that same walk, extracted so listing a folder
+// doesn't need to also know how to find a file inside it).
+export async function resolveFolderPath(
+  accessToken: string,
+  pathSegments: string[],
+): Promise<string> {
+  let parentId = "root";
+  for (const segment of pathSegments) {
+    const found = await findFolder(accessToken, segment, parentId);
+    if (!found) {
+      throw new Error(
+        `Folder "${segment}" was not found in "${pathSegments.join("/")}".`,
+      );
+    }
+    parentId = found;
+  }
+  return parentId;
+}
+
+export async function listFolderChildren(
+  accessToken: string,
+  folderId: string,
+): Promise<DriveFileSummary[]> {
+  const params = new URLSearchParams({
+    q: `'${escapeDriveQueryValue(folderId)}' in parents and trashed=false`,
+    fields: "files(id,name,mimeType)",
+    pageSize: "100",
+  });
+  const response = await driveFetch(accessToken, `/files?${params.toString()}`);
+  const data = (await response.json()) as { files?: DriveFileSummary[] };
+  return data.files ?? [];
+}
+
+export async function getFileMetadata(
+  accessToken: string,
+  fileId: string,
+): Promise<DriveFileSummary> {
+  const params = new URLSearchParams({ fields: "id,name,mimeType" });
+  const response = await driveFetch(
+    accessToken,
+    `/files/${fileId}?${params.toString()}`,
+  );
+  return response.json();
+}
+
+// Moves to trash rather than a permanent delete — reversible from Drive's
+// own UI within its retention window, the same safety margin Drive's own
+// "Delete" action in its web UI gives a person, not something this tool
+// forecloses just because it's called by an agent instead of a human.
+export async function trashFile(
+  accessToken: string,
+  fileId: string,
+): Promise<void> {
+  await driveFetch(accessToken, `/files/${fileId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ trashed: true }),
+  });
+}
+
+export type DriveShareRole = "reader" | "commenter" | "writer";
+
+export async function shareFile(
+  accessToken: string,
+  fileId: string,
+  email: string,
+  role: DriveShareRole,
+): Promise<void> {
+  await driveFetch(accessToken, `/files/${fileId}/permissions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type: "user", role, emailAddress: email }),
+  });
+}
+
 async function updateFileContent(
   accessToken: string,
   fileId: string,

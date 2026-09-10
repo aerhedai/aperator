@@ -157,6 +157,118 @@ export async function listOutlookAttachments(
     }));
 }
 
+// Same OUTLOOK_INBOX_FOLDER boundary as listUnreadOutlookMessages
+// (CLAUDE.md §14) — $search runs scoped to that folder's messages
+// endpoint, never the whole mailbox, regardless of what query text an
+// agent supplies.
+export async function searchOutlookMessages(
+  accessToken: string,
+  query: string,
+  maxResults = 10,
+): Promise<OutlookMessageSummary[]> {
+  const folderId = await resolveInboxFolderId(accessToken);
+  const params = new URLSearchParams({
+    $search: `"${query.replace(/"/g, '\\"')}"`,
+    $select: "id",
+    $top: String(maxResults),
+  });
+  const response = await graphFetch(
+    accessToken,
+    `/mailFolders/${folderId}/messages?${params.toString()}`,
+  );
+  const data = (await response.json()) as { value: OutlookMessageSummary[] };
+  return data.value;
+}
+
+// Moves to Graph's well-known "archive" folder — reversible (move back),
+// no customer-visible effect, so not approval-gated.
+export async function archiveOutlookMessage(
+  accessToken: string,
+  messageId: string,
+): Promise<void> {
+  await graphFetch(accessToken, `/messages/${messageId}/move`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ destinationId: "archive" }),
+  });
+}
+
+// POSTing to /messages (rather than /sendMail) creates the message as a
+// draft — Graph never sends it until a separate explicit send call, which
+// this app doesn't make on its behalf. Same "nothing customer-visible
+// happens" reasoning as Gmail's createGmailDraft for why this isn't
+// approval-gated the way OUTLOOK_SEND_EMAIL is.
+export async function createOutlookDraft(
+  accessToken: string,
+  params: { to: string; subject: string; body: string },
+): Promise<{ id: string }> {
+  const response = await graphFetch(accessToken, "/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      subject: params.subject,
+      body: { contentType: "Text", content: params.body },
+      toRecipients: [{ emailAddress: { address: params.to } }],
+    }),
+  });
+  const data = (await response.json()) as { id: string };
+  return { id: data.id };
+}
+
+export interface OutlookContact {
+  id: string;
+  displayName: string;
+  email: string | null;
+}
+
+interface GraphContact {
+  id: string;
+  displayName?: string;
+  emailAddresses?: { address: string }[];
+}
+
+// $search across name and email in one call — Contacts.ReadWrite was
+// requested for exactly this (currently unused, per the scope's own
+// schema.prisma-adjacent comment in oauth.ts).
+export async function findOutlookContacts(
+  accessToken: string,
+  query: string,
+  maxResults = 10,
+): Promise<OutlookContact[]> {
+  const params = new URLSearchParams({
+    $search: `"${query.replace(/"/g, '\\"')}"`,
+    $top: String(maxResults),
+  });
+  const response = await graphFetch(
+    accessToken,
+    `/contacts?${params.toString()}`,
+  );
+  const data = (await response.json()) as { value: GraphContact[] };
+  return data.value.map((c) => ({
+    id: c.id,
+    displayName: c.displayName ?? "",
+    email: c.emailAddresses?.[0]?.address ?? null,
+  }));
+}
+
+// Not approval-gated: a new contact is internal address-book data, never
+// seen by anyone outside the business and trivially deleted if wrong.
+export async function createOutlookContact(
+  accessToken: string,
+  params: { displayName: string; email: string },
+): Promise<{ id: string }> {
+  const response = await graphFetch(accessToken, "/contacts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      givenName: params.displayName,
+      emailAddresses: [{ address: params.email, name: params.displayName }],
+    }),
+  });
+  const data = (await response.json()) as { id: string };
+  return { id: data.id };
+}
+
 export async function markOutlookMessageRead(
   accessToken: string,
   messageId: string,

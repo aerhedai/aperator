@@ -42,6 +42,18 @@ const REQUIRES_APPROVAL_BEFORE_EXECUTION = new Set([
   "GMAIL_SEND_EMAIL",
   "OUTLOOK_SEND_EMAIL",
   "OUTLOOK_CREATE_CALENDAR_EVENT",
+  // Same "notifies attendees, hard to undo" reasoning as
+  // OUTLOOK_CREATE_CALENDAR_EVENT above.
+  "OUTLOOK_UPDATE_CALENDAR_EVENT",
+  "OUTLOOK_CANCEL_CALENDAR_EVENT",
+  // Removing or granting access to a file a business expects to find (or
+  // control who can see) is consequential enough to warrant a human
+  // confirming first, even though both are reversible in principle
+  // (Drive's trash, revoking a permission) — CLAUDE.md §4.6's "no amount
+  // threshold, no exceptions."
+  "GOOGLE_DRIVE_DELETE_FILE",
+  "GOOGLE_DRIVE_SHARE_FILE",
+  "SHAREPOINT_DELETE_FILE",
 ]);
 
 export async function requiresApprovalBeforeExecution(

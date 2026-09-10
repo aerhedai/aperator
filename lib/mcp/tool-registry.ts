@@ -70,6 +70,37 @@ export const TOOL_REGISTRY = [
       "Send an email reply via the connected Gmail account — always requires approval.",
   },
   {
+    name: "GMAIL_SEARCH_INBOX",
+    group: "Gmail",
+    provider: "gmail",
+    label: "Search inbox",
+    description:
+      "Search the connected Gmail inbox with Gmail's own query syntax — broader than reading just unread messages.",
+  },
+  {
+    name: "GMAIL_ARCHIVE_MESSAGE",
+    group: "Gmail",
+    provider: "gmail",
+    label: "Archive message",
+    description: "Archive a message in the connected Gmail inbox.",
+  },
+  {
+    name: "GMAIL_CREATE_DRAFT",
+    group: "Gmail",
+    provider: "gmail",
+    label: "Create draft",
+    description:
+      "Create a draft in the connected Gmail account for a human to review and send.",
+  },
+  {
+    name: "GMAIL_APPLY_LABEL",
+    group: "Gmail",
+    provider: "gmail",
+    label: "Apply label",
+    description:
+      "Apply a label to a message in the connected Gmail inbox, e.g. to mark it as handled.",
+  },
+  {
     name: "OUTLOOK_READ_INBOX",
     group: "Outlook",
     provider: "outlook",
@@ -86,6 +117,44 @@ export const TOOL_REGISTRY = [
       "Send an email reply via the connected Outlook account — always requires approval.",
   },
   {
+    name: "OUTLOOK_SEARCH_INBOX",
+    group: "Outlook",
+    provider: "outlook",
+    label: "Search inbox",
+    description:
+      "Search the connected Outlook inbox by free text — broader than reading just unread messages.",
+  },
+  {
+    name: "OUTLOOK_ARCHIVE_MESSAGE",
+    group: "Outlook",
+    provider: "outlook",
+    label: "Archive message",
+    description: "Archive a message in the connected Outlook inbox.",
+  },
+  {
+    name: "OUTLOOK_CREATE_DRAFT",
+    group: "Outlook",
+    provider: "outlook",
+    label: "Create draft",
+    description:
+      "Create a draft in the connected Outlook account for a human to review and send.",
+  },
+  {
+    name: "OUTLOOK_FIND_CONTACT",
+    group: "Outlook",
+    provider: "outlook",
+    label: "Find contact",
+    description:
+      "Search the connected Outlook account's contacts by name or email.",
+  },
+  {
+    name: "OUTLOOK_CREATE_CONTACT",
+    group: "Outlook",
+    provider: "outlook",
+    label: "Create contact",
+    description: "Add a new contact to the connected Outlook account.",
+  },
+  {
     name: "SLACK_POST_MESSAGE",
     group: "Slack",
     provider: "slack",
@@ -94,12 +163,54 @@ export const TOOL_REGISTRY = [
       "Post an internal notification to a Slack channel, to alert a human that something needs attention.",
   },
   {
+    name: "SLACK_SEARCH_MESSAGES",
+    group: "Slack",
+    provider: "slack",
+    label: "Search messages",
+    description: "Search messages across the connected Slack workspace.",
+  },
+  {
+    name: "SLACK_LIST_CHANNELS",
+    group: "Slack",
+    provider: "slack",
+    label: "List channels",
+    description: "List the channels in the connected Slack workspace.",
+  },
+  {
+    name: "SLACK_READ_CHANNEL_HISTORY",
+    group: "Slack",
+    provider: "slack",
+    label: "Read channel history",
+    description: "Read recent messages from a Slack channel.",
+  },
+  {
+    name: "SLACK_GET_USER_INFO",
+    group: "Slack",
+    provider: "slack",
+    label: "Get user info",
+    description: "Look up a Slack user's display name and email by their id.",
+  },
+  {
     name: "TEAMS_POST_MESSAGE",
     group: "Teams",
     provider: "teams",
     label: "Post message",
     description:
       "Post an internal notification to a Microsoft Teams channel — posts as whichever person connected the account.",
+  },
+  {
+    name: "TEAMS_LIST_CHANNELS",
+    group: "Teams",
+    provider: "teams",
+    label: "List channels",
+    description: "List the channels in a Microsoft Teams team.",
+  },
+  {
+    name: "TEAMS_READ_CHANNEL_MESSAGES",
+    group: "Teams",
+    provider: "teams",
+    label: "Read channel messages",
+    description: "Read recent messages from a Microsoft Teams channel.",
   },
   {
     name: "OUTLOOK_CHECK_CALENDAR_AVAILABILITY",
@@ -119,6 +230,30 @@ export const TOOL_REGISTRY = [
     label: "Create calendar event",
     description:
       "Create a real Outlook Calendar event and invite attendees — always requires approval.",
+  },
+  {
+    name: "OUTLOOK_UPDATE_CALENDAR_EVENT",
+    group: "Outlook Calendar",
+    provider: "outlook-calendar",
+    label: "Update calendar event",
+    description:
+      "Update an existing Outlook Calendar event's time, subject, or attendees — always requires approval.",
+  },
+  {
+    name: "OUTLOOK_CANCEL_CALENDAR_EVENT",
+    group: "Outlook Calendar",
+    provider: "outlook-calendar",
+    label: "Cancel calendar event",
+    description:
+      "Cancel an Outlook Calendar event and notify attendees — always requires approval.",
+  },
+  {
+    name: "OUTLOOK_LIST_CALENDAR_EVENTS",
+    group: "Outlook Calendar",
+    provider: "outlook-calendar",
+    label: "List calendar events",
+    description:
+      "List events already on the connected Outlook Calendar within a time range.",
   },
   {
     name: "GOOGLE_DRIVE_CREATE_FOLDER",
@@ -145,6 +280,46 @@ export const TOOL_REGISTRY = [
       "Fill a business's .docx template with real data and save the result to their connected Google Drive.",
   },
   {
+    name: "GOOGLE_DRIVE_SEARCH_FILES",
+    group: "Google Drive",
+    provider: "google-drive",
+    label: "Search files",
+    description:
+      "Search the business's connected Google Drive by file name or content.",
+  },
+  {
+    name: "GOOGLE_DRIVE_LIST_FOLDER",
+    group: "Google Drive",
+    provider: "google-drive",
+    label: "List folder",
+    description:
+      "List the files and subfolders inside a folder path in the connected Google Drive.",
+  },
+  {
+    name: "GOOGLE_DRIVE_GET_FILE",
+    group: "Google Drive",
+    provider: "google-drive",
+    label: "Get file",
+    description:
+      "Fetch a specific file's content from the connected Google Drive by id.",
+  },
+  {
+    name: "GOOGLE_DRIVE_DELETE_FILE",
+    group: "Google Drive",
+    provider: "google-drive",
+    label: "Delete file",
+    description:
+      "Move a file to trash in the connected Google Drive — always requires approval.",
+  },
+  {
+    name: "GOOGLE_DRIVE_SHARE_FILE",
+    group: "Google Drive",
+    provider: "google-drive",
+    label: "Share file",
+    description:
+      "Grant an email address access to a file in the connected Google Drive — always requires approval.",
+  },
+  {
     name: "SHAREPOINT_CREATE_FOLDER",
     group: "SharePoint",
     provider: "sharepoint",
@@ -167,6 +342,38 @@ export const TOOL_REGISTRY = [
     label: "Populate document template",
     description:
       "Fill a business's .docx template with real data and save the result to their connected SharePoint site.",
+  },
+  {
+    name: "SHAREPOINT_SEARCH_FILES",
+    group: "SharePoint",
+    provider: "sharepoint",
+    label: "Search files",
+    description:
+      "Search a connected SharePoint site's document library by file name or content.",
+  },
+  {
+    name: "SHAREPOINT_LIST_FOLDER",
+    group: "SharePoint",
+    provider: "sharepoint",
+    label: "List folder",
+    description:
+      "List the files and subfolders inside a folder path in a connected SharePoint site.",
+  },
+  {
+    name: "SHAREPOINT_GET_FILE",
+    group: "SharePoint",
+    provider: "sharepoint",
+    label: "Get file",
+    description:
+      "Fetch a specific file's content from a connected SharePoint site by id.",
+  },
+  {
+    name: "SHAREPOINT_DELETE_FILE",
+    group: "SharePoint",
+    provider: "sharepoint",
+    label: "Delete file",
+    description:
+      "Delete a file from a connected SharePoint site — always requires approval.",
   },
   {
     name: "list_invokable",

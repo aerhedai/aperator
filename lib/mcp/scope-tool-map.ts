@@ -24,33 +24,81 @@
 // provider's requested scopes later doesn't require touching this file.
 export const SCOPE_TOOL_MAP: Record<string, Record<string, string[]>> = {
   gmail: {
-    "https://mail.google.com/": ["GMAIL_SEND_EMAIL", "GMAIL_READ_INBOX"],
+    "https://mail.google.com/": [
+      "GMAIL_SEND_EMAIL",
+      "GMAIL_READ_INBOX",
+      "GMAIL_SEARCH_INBOX",
+      "GMAIL_ARCHIVE_MESSAGE",
+      "GMAIL_CREATE_DRAFT",
+      "GMAIL_APPLY_LABEL",
+    ],
   },
   outlook: {
-    "https://graph.microsoft.com/Mail.Read": ["OUTLOOK_READ_INBOX"],
-    "https://graph.microsoft.com/Mail.ReadWrite": ["OUTLOOK_READ_INBOX"],
+    "https://graph.microsoft.com/Mail.Read": [
+      "OUTLOOK_READ_INBOX",
+      "OUTLOOK_SEARCH_INBOX",
+    ],
+    "https://graph.microsoft.com/Mail.ReadWrite": [
+      "OUTLOOK_READ_INBOX",
+      "OUTLOOK_SEARCH_INBOX",
+      "OUTLOOK_ARCHIVE_MESSAGE",
+      "OUTLOOK_CREATE_DRAFT",
+    ],
     "https://graph.microsoft.com/Mail.Send": ["OUTLOOK_SEND_EMAIL"],
+    "https://graph.microsoft.com/Contacts.ReadWrite": [
+      "OUTLOOK_FIND_CONTACT",
+      "OUTLOOK_CREATE_CONTACT",
+    ],
   },
   "outlook-calendar": {
     "https://graph.microsoft.com/Calendars.Read": [
       "OUTLOOK_CHECK_CALENDAR_AVAILABILITY",
+      "OUTLOOK_LIST_CALENDAR_EVENTS",
     ],
     "https://graph.microsoft.com/Calendars.ReadWrite": [
       "OUTLOOK_CHECK_CALENDAR_AVAILABILITY",
       "OUTLOOK_CREATE_CALENDAR_EVENT",
+      "OUTLOOK_UPDATE_CALENDAR_EVENT",
+      "OUTLOOK_CANCEL_CALENDAR_EVENT",
+      "OUTLOOK_LIST_CALENDAR_EVENTS",
     ],
   },
+  // Slack's bot scope (chat:write) and user scopes (everything else here)
+  // are two independently-grantable halves of the same consent screen —
+  // see slack/oauth.ts's SLACK_SCOPES/SLACK_USER_SCOPES and
+  // integration-service.ts's getSlackUserToken. A tool needing a user
+  // scope is denied by ensureScopeAvailable if that half was declined,
+  // even though the bot half (chat:write) was granted.
   slack: {
     "chat:write": ["SLACK_POST_MESSAGE"],
+    "search:read.public": ["SLACK_SEARCH_MESSAGES"],
+    "search:read.private": ["SLACK_SEARCH_MESSAGES"],
+    "search:read.im": ["SLACK_SEARCH_MESSAGES"],
+    "search:read.mpim": ["SLACK_SEARCH_MESSAGES"],
+    "channels:read": ["SLACK_LIST_CHANNELS"],
+    "groups:read": ["SLACK_LIST_CHANNELS"],
+    "channels:history": ["SLACK_READ_CHANNEL_HISTORY"],
+    "groups:history": ["SLACK_READ_CHANNEL_HISTORY"],
+    "users:read": ["SLACK_GET_USER_INFO"],
+    "users:read.email": ["SLACK_GET_USER_INFO"],
   },
   teams: {
-    "https://graph.microsoft.com/Group.ReadWrite.All": ["TEAMS_POST_MESSAGE"],
+    "https://graph.microsoft.com/Group.ReadWrite.All": [
+      "TEAMS_POST_MESSAGE",
+      "TEAMS_LIST_CHANNELS",
+      "TEAMS_READ_CHANNEL_MESSAGES",
+    ],
   },
   "google-drive": {
     "https://www.googleapis.com/auth/drive": [
       "GOOGLE_DRIVE_CREATE_FOLDER",
       "GOOGLE_DRIVE_SAVE_FILE",
       "GOOGLE_DRIVE_POPULATE_TEMPLATE",
+      "GOOGLE_DRIVE_SEARCH_FILES",
+      "GOOGLE_DRIVE_LIST_FOLDER",
+      "GOOGLE_DRIVE_GET_FILE",
+      "GOOGLE_DRIVE_DELETE_FILE",
+      "GOOGLE_DRIVE_SHARE_FILE",
     ],
   },
   sharepoint: {
@@ -58,6 +106,10 @@ export const SCOPE_TOOL_MAP: Record<string, Record<string, string[]>> = {
       "SHAREPOINT_CREATE_FOLDER",
       "SHAREPOINT_SAVE_FILE",
       "SHAREPOINT_POPULATE_TEMPLATE",
+      "SHAREPOINT_SEARCH_FILES",
+      "SHAREPOINT_LIST_FOLDER",
+      "SHAREPOINT_GET_FILE",
+      "SHAREPOINT_DELETE_FILE",
     ],
   },
 };
