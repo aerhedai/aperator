@@ -1,13 +1,9 @@
 import { z } from "zod";
 
 import type { AIProvider } from "@/lib/ai/provider";
-import { getAIProvider } from "@/lib/ai/organisation-ai-provider";
-import * as agentRepository from "@/lib/agents/agent-repository";
-import { runHarnessPipeline } from "@/lib/harness/run-harness-pipeline";
+import { invokeAgentDirectly } from "@/lib/agents/invoke-agent-directly";
 import type { ToolName } from "@/lib/mcp/tool-registry";
 import { toolError, toolSuccess } from "@/lib/mcp/tool-result";
-import * as runRepository from "@/lib/runs/run-repository";
-import { runAgent } from "@/lib/runtime/agent-runtime";
 
 const TOOL_NAME: ToolName = "invoke_agent";
 
@@ -52,14 +48,6 @@ const outputSchema = {
     .nullable()
     .describe("The invoked agent's final or paused reply, if any."),
   runId: z.string(),
-};
-
-const STATUS_MAP: Record<string, z.infer<(typeof outputSchema)["status"]>> = {
-  COMPLETED: "completed",
-  WAITING_FOR_APPROVAL: "waiting_for_approval",
-  WAITING_FOR_INPUT: "waiting_for_input",
-  FAILED: "failed",
-  CANCELLED: "failed",
 };
 
 function buildDescription(invokableAgents: InvokableAgentSummary[]): string {
@@ -131,36 +119,23 @@ export function createInvokeAgentTool(
         );
       }
 
-      const targetAgent = await agentRepository.findAgentById(
+      const result = await invokeAgentDirectly(
         organisationId,
         agentId,
+        input,
+        invocationDepth,
+        provider,
       );
-      if (!targetAgent) {
+
+      // Only ever null when invokeAgentDirectly couldn't find the agent —
+      // every other outcome always has a real run id, even a failed one.
+      if (result.runId === null) {
         return toolError(`No agent found with id "${agentId}".`);
       }
 
-      const resolvedProvider =
-        provider ?? (await getAIProvider(organisationId));
-
-      const result =
-        targetAgent.executionMode === "HARNESS"
-          ? await runHarnessPipeline(targetAgent, input, resolvedProvider)
-          : await runAgent(
-              targetAgent,
-              input,
-              resolvedProvider,
-              invocationDepth + 1,
-            );
-
-      const finishedRun = await runRepository.findRunById(
-        organisationId,
-        result.runId,
-      );
-      const response = finishedRun?.steps.at(-1)?.detail ?? null;
-
       return toolSuccess({
-        status: STATUS_MAP[result.status] ?? "failed",
-        response,
+        status: result.status,
+        response: result.response,
         runId: result.runId,
       });
     },

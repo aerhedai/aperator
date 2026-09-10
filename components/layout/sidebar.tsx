@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronDown,
   LayoutGrid,
+  ListTodo,
   MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
@@ -26,6 +27,7 @@ import { cn } from "@/lib/utils";
 const LINKS = [
   { href: "/dashboard", label: "Home", icon: LayoutGrid },
   { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/tasks", label: "Tasks", icon: ListTodo },
   { href: "/workflows", label: "Workflows", icon: Workflow },
   { href: "/agents", label: "Agents", icon: Bot },
   { href: "/runs", label: "Runs", icon: Activity },

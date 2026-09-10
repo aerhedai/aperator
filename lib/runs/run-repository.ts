@@ -72,6 +72,22 @@ export function saveMessages(runId: string, messages: Prisma.InputJsonValue) {
   });
 }
 
+// Tags a run as one step of a Task/Routine's plan (lib/tasks/run-task-plan.ts)
+// after the fact — runHarnessPipeline/runAgent create the row themselves
+// with no taskRunId parameter, so this is a follow-up update rather than
+// something passed in at creation. Every other caller of createRun leaves
+// these columns null, exactly as before this existed.
+export function attachToTaskRun(
+  runId: string,
+  taskRunId: string,
+  stepIndex: number,
+) {
+  return prisma.agentRun.update({
+    where: { id: runId },
+    data: { taskRunId, stepIndex },
+  });
+}
+
 export function findRunById(organisationId: string, runId: string) {
   return prisma.agentRun.findFirst({
     where: { id: runId, organisationId },

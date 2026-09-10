@@ -80,7 +80,7 @@ describe("MCP tool server", () => {
     await prisma.organisation.deleteMany({ where: { id: organisationId } });
   });
 
-  it("lists exactly the twenty-five registered tools", async () => {
+  it("lists exactly the twenty-seven registered tools", async () => {
     const { tools } = await client.listTools();
     const names = tools.map((tool) => tool.name).sort();
 
@@ -103,6 +103,8 @@ describe("MCP tool server", () => {
       "SLACK_POST_MESSAGE",
       "TEAMS_POST_MESSAGE",
       "create_record",
+      "create_routine",
+      "create_task",
       "find_record",
       "install_template",
       "install_workflow_template",
