@@ -25,19 +25,19 @@ import { getCurrentOrganisation } from "@/lib/organisations/current-organisation
 const JUMP_TO = [
   {
     href: "/workflows",
-    label: "Workflows",
-    detail: "Classifier + handler routing for each trigger.",
+    label: "Departments",
+    detail: "A manager and its team, routing each trigger.",
     icon: Workflow,
   },
   {
     href: "/agents",
-    label: "Agents",
+    label: "Workers",
     detail: "Instructions, granted tools, and execution mode.",
     icon: Bot,
   },
   {
     href: "/runs",
-    label: "Runs",
+    label: "Activity",
     detail: "Every execution, step by step, with token cost.",
     icon: Activity,
   },
@@ -50,7 +50,7 @@ const JUMP_TO = [
   {
     href: "/knowledge",
     label: "Knowledge",
-    detail: "Indexed documents agents can retrieve answers from.",
+    detail: "Indexed documents workers can retrieve answers from.",
     icon: BookText,
   },
   {
@@ -88,7 +88,7 @@ export default async function DashboardPage({
     counts.failed > 0
       ? {
           key: "failed",
-          label: "Failed runs",
+          label: "Failed activity",
           detail: "Review what went wrong.",
           value: counts.failed,
           href: "/runs",
@@ -108,12 +108,12 @@ export default async function DashboardPage({
   ].filter((item) => item !== null);
 
   const overviewStats: { label: string; value: string; href: string }[] = [
-    { label: "Agents", value: String(counts.agents), href: "/workflows" },
-    { label: "Active runs", value: String(counts.running), href: "/runs" },
-    { label: "Completed runs", value: String(counts.completed), href: "/runs" },
+    { label: "Workers", value: String(counts.agents), href: "/agents" },
+    { label: "In progress", value: String(counts.running), href: "/runs" },
+    { label: "Completed", value: String(counts.completed), href: "/runs" },
     {
       // Deliberately just a total here, not a breakdown — the per-run
-      // detail (which agent, which category, prompt vs. completion) lives
+      // detail (which worker, which category, prompt vs. completion) lives
       // at /runs, not on the dashboard.
       label: "Tokens used",
       value: totalTokens.toLocaleString(),
@@ -125,10 +125,10 @@ export default async function DashboardPage({
     <p className="text-sm text-muted-foreground">
       {inboxProcessed === "0"
         ? "No new emails."
-        : `Routed ${inboxProcessed} new email${inboxProcessed === "1" ? "" : "s"} to an agent.`}
+        : `Routed ${inboxProcessed} new email${inboxProcessed === "1" ? "" : "s"} to a worker.`}
       {typeof inboxSkipped === "string" &&
         inboxSkipped !== "0" &&
-        ` ${inboxSkipped} left unread — no agent's scope clearly matched.`}
+        ` ${inboxSkipped} left unread — no worker's scope clearly matched.`}
     </p>
   );
 
@@ -261,7 +261,7 @@ export default async function DashboardPage({
           <CardHeader>
             <CardTitle className="text-sm font-medium">
               {emailIntegrations.length > 0
-                ? "Routing incoming email to agents"
+                ? "Routing incoming email to workers"
                 : "No inbox connected"}
             </CardTitle>
             {emailIntegrations.length > 0 && (
@@ -293,7 +293,7 @@ export default async function DashboardPage({
                 ))}
                 <p className="pt-2 text-xs text-muted-foreground">
                   Only reads mail routed into the Aperator label/folder, and
-                  routes each email to whichever agent&apos;s description best
+                  routes each email to whichever worker&apos;s description best
                   matches it — see Settings.
                 </p>
               </div>
@@ -306,7 +306,7 @@ export default async function DashboardPage({
                 >
                   Connect Gmail or Outlook in Settings
                 </Link>{" "}
-                to trigger agents from real email.
+                to trigger workers from real email.
               </p>
             )}
           </CardContent>

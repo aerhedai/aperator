@@ -87,7 +87,7 @@ export default async function WorkflowDetailPage({
       {warnings.length > 0 && (
         <div className="flex flex-col gap-1 rounded-md border border-destructive/40 bg-destructive/10 p-3">
           <p className="text-sm font-medium text-destructive">
-            This workflow is ACTIVE but misconfigured:
+            This department is ACTIVE but misconfigured:
           </p>
           {warnings.map((warning) => (
             <p key={warning} className="text-sm text-destructive">
@@ -116,8 +116,8 @@ export default async function WorkflowDetailPage({
       </div>
       {workflow.members.length > 0 && (
         <p className="-mt-4 text-xs text-muted-foreground">
-          This workflow has agents assigned, so it can&rsquo;t be deleted —
-          remove them below, or archive the workflow instead.
+          This department has workers assigned, so it can&rsquo;t be deleted —
+          remove them below, or archive the department instead.
         </p>
       )}
 
@@ -139,7 +139,7 @@ export default async function WorkflowDetailPage({
               <p className="text-sm text-muted-foreground">
                 {workflow.trigger === "MANUAL"
                   ? "Live — this department can be invoked from chat right now."
-                  : `Live — this is the workflow real ${workflow.trigger.toLowerCase()} traffic for this organisation is routed through.`}
+                  : `Live — this department is where real ${workflow.trigger.toLowerCase()} traffic for this organisation is routed.`}
               </p>
               <form action={deactivateWorkflowAction.bind(null, workflow.id)}>
                 <Button type="submit" variant="outline">
@@ -154,7 +154,7 @@ export default async function WorkflowDetailPage({
                   ? "Draft — not reachable from chat yet."
                   : `Draft — not reachable by real ${workflow.trigger.toLowerCase()} traffic yet.`}
                 {otherActiveWorkflow &&
-                  ` Activating this will deactivate "${otherActiveWorkflow.name}", which currently holds this trigger — only one workflow per trigger can be active at a time.`}
+                  ` Activating this will deactivate "${otherActiveWorkflow.name}", which currently holds this trigger — only one department per trigger can be active at a time.`}
               </p>
               <form action={activateWorkflowAction.bind(null, workflow.id)}>
                 <Button type="submit">Activate</Button>
@@ -209,13 +209,14 @@ export default async function WorkflowDetailPage({
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium text-muted-foreground">
-            Add agent to this workflow
+            Add worker to this department
           </CardTitle>
         </CardHeader>
         <CardContent>
           {unattachedAgents.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Every agent in your organisation is already part of this workflow.{" "}
+              Every worker in your organisation is already part of this
+              department.{" "}
               <Link href="/agents/new" className="text-primary hover:underline">
                 Create a new one
               </Link>{" "}
@@ -231,7 +232,7 @@ export default async function WorkflowDetailPage({
                   htmlFor="agentId"
                   className="text-xs text-muted-foreground"
                 >
-                  Agent
+                  Worker
                 </label>
                 <select
                   id="agentId"
@@ -260,12 +261,12 @@ export default async function WorkflowDetailPage({
                   <option value="CLASSIFIER">Classifier</option>
                 </select>
               </div>
-              <Button type="submit">Add to workflow</Button>
+              <Button type="submit">Add to department</Button>
             </form>
           )}
           <p className="mt-2 text-xs text-muted-foreground">
-            A workflow has one classifier and any number of handlers — adding a
-            second classifier replaces routing for this workflow rather than
+            A department has one classifier and any number of handlers — adding
+            a second classifier replaces routing for this department rather than
             running two in parallel.
           </p>
         </CardContent>
@@ -274,12 +275,12 @@ export default async function WorkflowDetailPage({
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium text-muted-foreground">
-            Recent runs
+            Recent activity
           </CardTitle>
         </CardHeader>
         <CardContent>
           {runs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No runs yet.</p>
+            <p className="text-sm text-muted-foreground">No activity yet.</p>
           ) : (
             <ul className="flex flex-col gap-2">
               {runs.map((run) => (

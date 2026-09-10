@@ -18,19 +18,19 @@ export default async function WorkflowsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Workflows</h1>
+        <h1 className="text-xl font-semibold">Departments</h1>
         <div className="flex items-center gap-4">
           <Link
             href="/workflows/new"
             className="text-sm font-medium text-primary hover:underline"
           >
-            Create workflow
+            Create department
           </Link>
           <Link
             href="/agents"
             className="text-sm font-medium text-primary hover:underline"
           >
-            All agents →
+            All workers →
           </Link>
         </div>
       </div>

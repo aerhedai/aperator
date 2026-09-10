@@ -67,10 +67,10 @@ export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Runs</h1>
+          <h1 className="text-xl font-semibold">Activity</h1>
           <p className="text-sm text-muted-foreground">
-            Every run across every agent in this organisation, most recent first
-            — {totalCount.toLocaleString()} total.
+            Every run across every worker in this organisation, most recent
+            first — {totalCount.toLocaleString()} total.
           </p>
         </div>
       </div>
@@ -111,7 +111,7 @@ export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="agentId" className="text-xs text-muted-foreground">
-            Agent
+            Worker
           </label>
           <select
             id="agentId"
@@ -119,7 +119,7 @@ export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
             defaultValue={agentId ?? ""}
             className="h-8 rounded-lg border border-border bg-background px-2 text-sm"
           >
-            <option value="">Any agent</option>
+            <option value="">Any worker</option>
             {agents.map((agent) => (
               <option key={agent.id} value={agent.id}>
                 {agent.name}
@@ -143,19 +143,21 @@ export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium text-muted-foreground">
-            All runs
+            All activity
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {runs.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">No runs yet.</p>
+            <p className="p-6 text-sm text-muted-foreground">
+              No activity yet.
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                    <th className="px-4 py-2 font-medium">Run</th>
-                    <th className="px-4 py-2 font-medium">Agent</th>
+                    <th className="px-4 py-2 font-medium">Activity</th>
+                    <th className="px-4 py-2 font-medium">Worker</th>
                     <th className="px-4 py-2 font-medium">Status</th>
                     <th className="px-4 py-2 font-medium">Input</th>
                     <th className="px-4 py-2 font-medium">

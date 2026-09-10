@@ -378,51 +378,51 @@ export const TOOL_REGISTRY = [
   {
     name: "list_invokable",
     group: "Orchestration",
-    label: "List invokable agents and workflows",
+    label: "List invokable workers and departments",
     description:
-      "See exactly which agents and departments are currently active and invokable, right now.",
+      "See exactly which workers and departments are currently active and invokable, right now.",
   },
   {
     name: "invoke_agent",
     group: "Orchestration",
-    label: "Invoke agent",
+    label: "Invoke worker",
     description:
-      "Delegate a task to another agent this one has been explicitly granted access to invoke.",
+      "Delegate a task to another worker this one has been explicitly granted access to invoke.",
   },
   {
     name: "invoke_workflow",
     group: "Orchestration",
-    label: "Invoke workflow",
+    label: "Invoke department",
     description:
-      "Ask a workflow's own classifier to decide which of its agents should handle something.",
+      "Ask a department's own manager to decide which of its workers should handle something.",
   },
   {
     name: "list_templates",
     group: "Orchestration",
     label: "List templates",
     description:
-      "See which pre-built agent templates are available to install for this organisation.",
+      "See which pre-built worker templates are available to install for this organisation.",
   },
   {
     name: "install_template",
     group: "Orchestration",
     label: "Install template",
     description:
-      "Install a pre-built agent template, creating a real (draft) agent from it.",
+      "Install a pre-built worker template, creating a real (draft) worker from it.",
   },
   {
     name: "install_workflow_template",
     group: "Orchestration",
-    label: "Install workflow template",
+    label: "Install department template",
     description:
-      "Install a pre-built department (a classifier plus its handlers), creating a real, active workflow from it.",
+      "Install a pre-built department (a manager plus its team), creating a real, active department from it.",
   },
   {
     name: "create_task",
     group: "Orchestration",
     label: "Create task",
     description:
-      "Create and immediately run a trackable one-off task made of one or more agent/workflow steps.",
+      "Create and immediately run a trackable one-off task made of one or more worker/department steps.",
   },
   {
     name: "create_routine",

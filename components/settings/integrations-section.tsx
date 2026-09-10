@@ -299,7 +299,7 @@ function DeleteIntegrationDialog({
           <DialogTitle>Remove {entry.label}?</DialogTitle>
           <DialogDescription>
             Disconnects all {accountCount} connected account
-            {accountCount === 1 ? "" : "s"}. Any agent or workflow using{" "}
+            {accountCount === 1 ? "" : "s"}. Any worker or department using{" "}
             {entry.label} will stop working until it&rsquo;s reconnected.
           </DialogDescription>
         </DialogHeader>

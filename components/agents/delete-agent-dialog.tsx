@@ -19,7 +19,7 @@ function DeleteSubmitButton() {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" variant="destructive" disabled={pending}>
-      {pending ? "Deleting…" : "Delete agent"}
+      {pending ? "Deleting…" : "Delete worker"}
     </Button>
   );
 }

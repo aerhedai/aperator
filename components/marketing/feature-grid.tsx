@@ -6,11 +6,11 @@ const FEATURES: { icon: LucideIcon; label: string; detail: string }[] = [
     icon: Wrench,
     label: "Tools & permissions",
     detail:
-      "Each agent gets an explicit, per-tool allowlist. A tool call outside that list is refused before it ever reaches the model's request.",
+      "Each worker gets an explicit, per-tool allowlist. A tool call outside that list is refused before it ever reaches the model's request.",
   },
   {
     icon: ShieldCheck,
-    label: "Policy engine",
+    label: "Rule engine",
     detail:
       "Deterministic application code decides ALLOW / REQUIRE_APPROVAL / DENY for every action — the model recommends, it never has the final say.",
   },
@@ -24,7 +24,7 @@ const FEATURES: { icon: LucideIcon; label: string; detail: string }[] = [
     icon: History,
     label: "Audit trail",
     detail:
-      "Every run, decision, tool call, and outcome is persisted from the start — not something you turn on after the first incident.",
+      "Every activity, decision, tool call, and outcome is persisted from the start — not something you turn on after the first incident.",
   },
 ];
 

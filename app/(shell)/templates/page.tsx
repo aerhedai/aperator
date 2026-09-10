@@ -28,9 +28,10 @@ export default async function TemplatesPage({
         <div>
           <h2 className="text-lg font-semibold">Departments</h2>
           <p className="text-sm text-muted-foreground">
-            A classifier plus its handler agents, installed together as one
-            real, active workflow — ready to use the moment it&apos;s installed.
-            Everything a department fills in stays editable afterwards.
+            A classifier plus its handler workers, installed together as one
+            real, active department — ready to use the moment it&apos;s
+            installed. Everything a department fills in stays editable
+            afterwards.
           </p>
         </div>
         <WorkflowTemplateLibrary templates={workflowTemplates} />
@@ -38,10 +39,10 @@ export default async function TemplatesPage({
 
       <div className="flex flex-col gap-6">
         <div>
-          <h2 className="text-lg font-semibold">Agent templates</h2>
+          <h2 className="text-lg font-semibold">Worker templates</h2>
           <p className="text-sm text-muted-foreground">
             A saved bundle of steps and suggested tools — a starting point for a
-            new agent, not a commitment. Everything a template fills in stays
+            new worker, not a commitment. Everything a template fills in stays
             editable afterwards.
           </p>
         </div>

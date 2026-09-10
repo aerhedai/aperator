@@ -18,7 +18,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" disabled={pending}>
-      {pending ? "Creating…" : "Create workflow"}
+      {pending ? "Creating…" : "Create department"}
     </Button>
   );
 }
@@ -68,7 +68,7 @@ export function WorkflowForm({
         <Textarea
           id="description"
           name="description"
-          placeholder="What this workflow is for"
+          placeholder="What this department is for"
           required
         />
         {state.fieldErrors?.description && (
@@ -92,10 +92,10 @@ export function WorkflowForm({
         </select>
         <p className="text-xs text-muted-foreground">
           Webhook lets anything that can send a JSON POST (a form backend,
-          Zapier, another internal system) trigger this workflow. More triggers
-          (Slack, forms) are on the way. This workflow starts as a draft: build
-          it out by adding a classifier and handler agents, then activate it
-          when it&rsquo;s ready to receive real traffic.
+          Zapier, another internal system) trigger this department. More
+          triggers (Slack, forms) are on the way. This department starts as a
+          draft: build it out by adding a classifier and handler workers, then
+          activate it when it&rsquo;s ready to receive real traffic.
         </p>
         {state.fieldErrors?.trigger && (
           <p className="text-sm text-destructive">
@@ -135,16 +135,16 @@ export function WorkflowForm({
               </>
             ) : (
               <>
-                Exactly which webhook URL/secret triggers this workflow. Each
-                connected account can only be bound to one active workflow at a
-                time.
+                Exactly which webhook URL/secret triggers this department. Each
+                connected account can only be bound to one active department at
+                a time.
               </>
             )
           ) : (
             <>
               Optional. Leave as default unless this business has connected more
-              than one Gmail account and this workflow should only listen on one
-              of them.
+              than one Gmail account and this department should only listen on
+              one of them.
             </>
           )}
         </p>

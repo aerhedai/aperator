@@ -29,14 +29,14 @@ export const dynamic = "force-dynamic";
 
 const STEP_LABELS: Record<RunStepType, string> = {
   INPUT_RECEIVED: "Input received",
-  AGENT_DECISION: "Agent decision",
+  AGENT_DECISION: "Worker decision",
   TOOL_CALL: "Tool call",
   APPROVAL_REQUESTED: "Approval requested",
   APPROVAL_GRANTED: "Approval granted",
   AWAITING_INPUT: "Waiting for the next message",
-  RUN_COMPLETED: "Run completed",
-  RUN_FAILED: "Run failed",
-  RUN_CANCELLED: "Run cancelled",
+  RUN_COMPLETED: "Activity completed",
+  RUN_FAILED: "Activity failed",
+  RUN_CANCELLED: "Activity cancelled",
 };
 
 function formatDuration(
@@ -80,7 +80,9 @@ export default async function RunDetailPage({
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold">Run #{run.id.slice(-8)}</h1>
+          <h1 className="text-xl font-semibold">
+            Activity #{run.id.slice(-8)}
+          </h1>
           <RunStatusBadge status={run.status} />
         </div>
         <Link

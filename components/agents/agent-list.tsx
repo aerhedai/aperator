@@ -37,7 +37,7 @@ export function AgentList({ agents }: { agents: Agent[] }) {
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Search agents…"
+            placeholder="Search workers…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="pl-8"
@@ -74,8 +74,8 @@ export function AgentList({ agents }: { agents: Agent[] }) {
       {filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {query
-            ? "No agents match your search."
-            : "No agents yet. Create one to get started."}
+            ? "No workers match your search."
+            : "No workers yet. Create one to get started."}
         </p>
       ) : view === "list" ? (
         <div className="flex flex-col gap-3">
@@ -91,8 +91,8 @@ export function AgentList({ agents }: { agents: Agent[] }) {
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-sm text-muted-foreground">
-                      {agent._count.runs} run
-                      {agent._count.runs === 1 ? "" : "s"}
+                      {agent._count.runs}{" "}
+                      {agent._count.runs === 1 ? "activity" : "activities"}
                     </span>
                     <AgentStatusBadge status={agent.status} />
                   </div>
@@ -115,7 +115,8 @@ export function AgentList({ agents }: { agents: Agent[] }) {
                     {agent.description}
                   </p>
                   <span className="text-xs text-muted-foreground">
-                    {agent._count.runs} run{agent._count.runs === 1 ? "" : "s"}
+                    {agent._count.runs}{" "}
+                    {agent._count.runs === 1 ? "activity" : "activities"}
                   </span>
                 </CardContent>
               </Card>

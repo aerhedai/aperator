@@ -50,7 +50,7 @@ function AgentNode({
           className="self-center"
         >
           <Button type="submit" variant="outline" size="sm">
-            Remove from workflow
+            Remove from department
           </Button>
         </form>
       )}
@@ -78,7 +78,7 @@ export function WorkflowFlowDiagram({
   if (!classifier) {
     return (
       <p className="text-sm text-muted-foreground">
-        This workflow has no classifier agent assigned.
+        This department has no classifier worker assigned.
       </p>
     );
   }

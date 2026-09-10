@@ -2,17 +2,17 @@ const POINTS = [
   {
     label: "Tools, not free text",
     detail:
-      "An agent can only call the tools you've explicitly granted it — find_record, create_record, send_email. It can't do anything you haven't wired up.",
+      "A worker can only call the tools you've explicitly granted it — find_record, create_record, send_email. It can't do anything you haven't wired up.",
   },
   {
-    label: "Policy, not vibes",
+    label: "Rules, not vibes",
     detail:
-      "Whether an action needs approval is decided by deterministic application code, not the model's judgment. The AI recommends; policy decides.",
+      "Whether an action needs approval is decided by deterministic application code, not the model's judgment. The AI recommends; rules decide.",
   },
   {
     label: "A record, not a transcript",
     detail:
-      "Every input, decision, tool call, and outcome is persisted — inspectable per run, not just logged to a chat window that scrolls away.",
+      "Every input, decision, tool call, and outcome is persisted — inspectable per activity, not just logged to a chat window that scrolls away.",
   },
 ];
 
