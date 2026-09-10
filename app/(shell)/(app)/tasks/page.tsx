@@ -9,7 +9,6 @@ import * as taskRepository from "@/lib/tasks/task-repository";
 export const dynamic = "force-dynamic";
 
 const PRESET_LABELS: Record<string, string> = {
-  HOURLY: "Every hour",
   DAILY_9AM: "Daily, 9am",
   WEEKDAYS_9AM: "Weekdays, 9am",
   WEEKLY_MONDAY_9AM: "Weekly, Mon 9am",

@@ -134,9 +134,12 @@ enum TaskStatus {
 // A closed set of named recurrences, not raw cron — same "start narrow,
 // widen later" call already made for WorkflowTriggerType. Fires in UTC;
 // per-business timezone handling is future work, tracked in
-// docs/production-notes.md.
+// docs/production-notes.md. No HOURLY option: the cron sweep itself
+// (vercel.json) only fires once a day — Vercel's Hobby plan caps cron
+// jobs at one invocation per day — so anything more frequent than daily
+// isn't actually deliverable yet, and a preset promising "hourly" while
+// only ever firing once a day would be a lie the product tells itself.
 enum TaskSchedulePreset {
-  HOURLY
   DAILY_9AM
   WEEKDAYS_9AM
   WEEKLY_MONDAY_9AM

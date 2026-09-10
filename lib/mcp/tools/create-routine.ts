@@ -24,7 +24,6 @@ const TOOL_NAME: ToolName = "create_routine";
 // environment introspects tool schemas (e.g. tests that import this file
 // without a live database).
 const SCHEDULE_PRESETS = [
-  "HOURLY",
   "DAILY_9AM",
   "WEEKDAYS_9AM",
   "WEEKLY_MONDAY_9AM",
@@ -53,7 +52,7 @@ const inputSchema = {
   schedulePreset: z
     .enum(SCHEDULE_PRESETS)
     .describe(
-      "How often this fires, in UTC: HOURLY, DAILY_9AM, WEEKDAYS_9AM (Mon-Fri), or WEEKLY_MONDAY_9AM.",
+      "How often this fires, in UTC: DAILY_9AM, WEEKDAYS_9AM (Mon-Fri), or WEEKLY_MONDAY_9AM.",
     ),
 };
 

@@ -10,7 +10,6 @@ function utc(iso: string): Date {
 describe("isPresetDue", () => {
   it("every preset is due immediately when it has never run, at a time each preset's own gate allows (Monday 9am)", () => {
     const now = utc("2026-09-14T09:00:00Z"); // a Monday
-    expect(isPresetDue("HOURLY", null, now)).toBe(true);
     expect(isPresetDue("DAILY_9AM", null, now)).toBe(true);
     expect(isPresetDue("WEEKDAYS_9AM", null, now)).toBe(true);
     expect(isPresetDue("WEEKLY_MONDAY_9AM", null, now)).toBe(true);
@@ -18,24 +17,9 @@ describe("isPresetDue", () => {
 
   it("a never-run preset still isn't due outside its own day/hour gate", () => {
     const now = utc("2026-09-10T09:00:00Z"); // a Thursday
-    expect(isPresetDue("HOURLY", null, now)).toBe(true);
     expect(isPresetDue("DAILY_9AM", null, now)).toBe(true);
     expect(isPresetDue("WEEKDAYS_9AM", null, now)).toBe(true);
     expect(isPresetDue("WEEKLY_MONDAY_9AM", null, now)).toBe(false);
-  });
-
-  describe("HOURLY", () => {
-    it("is not due again within the same calendar hour", () => {
-      const lastRunAt = utc("2026-09-10T09:05:00Z");
-      const now = utc("2026-09-10T09:55:00Z");
-      expect(isPresetDue("HOURLY", lastRunAt, now)).toBe(false);
-    });
-
-    it("is due once the calendar hour changes", () => {
-      const lastRunAt = utc("2026-09-10T09:55:00Z");
-      const now = utc("2026-09-10T10:00:00Z");
-      expect(isPresetDue("HOURLY", lastRunAt, now)).toBe(true);
-    });
   });
 
   describe("DAILY_9AM", () => {

@@ -28,8 +28,9 @@ function isAuthorized(request: Request): boolean {
 /**
  * The one thing that makes a Routine actually a routine rather than a
  * dead schedulePreset column — Vercel Cron hits this on a fixed interval
- * (vercel.json's "0 * * * *", hourly; see schedule-presets.ts's own
- * comment on why every preset assumes that cadence). For each ACTIVE
+ * (vercel.json's "0 9 * * *", once daily — Vercel's Hobby plan caps
+ * cron at one invocation a day; see schedule-presets.ts's own comment
+ * on why every preset assumes that cadence). For each ACTIVE
  * routine whose preset is due against its own last run, this creates a
  * fresh TaskRun and replays its stored plan via run-task-plan.ts — no
  * live reasoning about what to do, exactly the same execution runTaskPlan

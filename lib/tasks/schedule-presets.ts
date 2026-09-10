@@ -4,26 +4,23 @@ import type { TaskSchedulePreset } from "@/lib/generated/prisma/client";
 // ran — pure and UTC-only (no per-business timezone yet, see
 // TaskSchedulePreset's own schema comment) so it's testable without a
 // real clock or database. The cron sweep (app/api/cron/run-due-tasks)
-// calls this once per ACTIVE routine on each run, expected hourly
-// (vercel.json's "0 * * * *") — every preset here assumes an hourly
-// sweep and would silently skip fires if the sweep ran less often than
-// its own cadence.
+// calls this once per ACTIVE routine on each run, expected once daily
+// (vercel.json's "0 9 * * *" — Vercel's Hobby plan caps cron at one
+// invocation a day, which is also why there's no HOURLY preset) — every
+// preset here assumes that cadence and would silently skip fires if the
+// sweep ran less often than its own.
 export function isPresetDue(
   preset: TaskSchedulePreset,
   lastRunAt: Date | null,
   now: Date,
 ): boolean {
-  // A day/hour gate below (DAILY_9AM etc.) must still apply even when
-  // there's no history yet — a routine that's never run is "due
-  // immediately" only in the sense of having nothing to compare against,
-  // never in the sense of skipping its own gate. A never-run
-  // WEEKDAYS_9AM routine checked on a Saturday is still not due; it's
-  // simply not blocked by its own history the way a same-day rerun is.
+  // A day/hour gate below must still apply even when there's no history
+  // yet — a routine that's never run is "due immediately" only in the
+  // sense of having nothing to compare against, never in the sense of
+  // skipping its own gate. A never-run WEEKDAYS_9AM routine checked on a
+  // Saturday is still not due; it's simply not blocked by its own history
+  // the way a same-day rerun is.
   switch (preset) {
-    case "HOURLY":
-      // Once per calendar hour, not "60 minutes since last run" — avoids
-      // drifting later each cycle if a sweep ever runs a few minutes late.
-      return !lastRunAt || !isSameUtcHour(lastRunAt, now);
     case "DAILY_9AM":
       return (
         now.getUTCHours() === 9 &&
@@ -42,10 +39,6 @@ export function isPresetDue(
         (!lastRunAt || lastRunAt < startOfUtcWeek(now))
       );
   }
-}
-
-function isSameUtcHour(a: Date, b: Date): boolean {
-  return isSameUtcDate(a, b) && a.getUTCHours() === b.getUTCHours();
 }
 
 function isSameUtcDate(a: Date, b: Date): boolean {

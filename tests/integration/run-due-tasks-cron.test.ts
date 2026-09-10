@@ -55,6 +55,7 @@ describe("GET /api/cron/run-due-tasks", () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.useRealTimers();
   });
 
   afterAll(async () => {
@@ -105,12 +106,16 @@ describe("GET /api/cron/run-due-tasks", () => {
   });
 
   it("fires an ACTIVE routine whose preset is due, and leaves an inactive/paused one alone", async () => {
-    // HOURLY with no prior run is always due, regardless of current time —
-    // avoids this test being sensitive to when it happens to run.
+    // The real route reads the wall clock (new Date()) internally, so the
+    // clock is frozen at a time DAILY_9AM is actually due — otherwise this
+    // test would only pass if it happened to run during the 9am UTC hour.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-14T09:00:00Z"));
+
     const dueRoutine = await taskRepository.createTask(
       organisationId,
       "Due routine",
-      "Runs every hour.",
+      "Runs every day.",
       {
         steps: [
           {
@@ -120,13 +125,13 @@ describe("GET /api/cron/run-due-tasks", () => {
           },
         ],
       },
-      "HOURLY",
+      "DAILY_9AM",
     );
 
     const pausedRoutine = await taskRepository.createTask(
       organisationId,
       "Paused routine",
-      "Also runs every hour, but paused.",
+      "Also runs every day, but paused.",
       {
         steps: [
           {
@@ -136,7 +141,7 @@ describe("GET /api/cron/run-due-tasks", () => {
           },
         ],
       },
-      "HOURLY",
+      "DAILY_9AM",
     );
     await taskRepository.updateTaskStatus(pausedRoutine.id, "PAUSED");
 

@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/run-due-tasks",
-      "schedule": "0 * * * *"
+      "schedule": "0 9 * * *"
     }
   ]
 }
