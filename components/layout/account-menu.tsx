@@ -76,7 +76,7 @@ export function AccountMenu({ collapsed }: { collapsed: boolean }) {
     <DropdownMenu>
       <DropdownMenuTrigger
         className={cn(
-          "flex min-w-0 items-center gap-2 rounded-md p-1.5 text-left outline-none transition-colors hover:bg-muted data-[open]:bg-muted",
+          "flex min-w-0 items-center gap-2 rounded-md p-1.5 text-left outline-none transition-colors hover:bg-sidebar-accent data-[open]:bg-sidebar-accent",
           collapsed ? "justify-center" : "w-full",
         )}
         aria-label="Account and organisation menu"
@@ -85,14 +85,14 @@ export function AccountMenu({ collapsed }: { collapsed: boolean }) {
         {!collapsed && (
           <>
             <span className="flex min-w-0 flex-1 flex-col leading-tight">
-              <span className="truncate text-xs font-medium text-foreground">
+              <span className="truncate text-xs font-medium text-sidebar-foreground">
                 {organization?.name ?? label}
               </span>
-              <span className="truncate text-[11px] text-muted-foreground">
+              <span className="truncate text-[11px] text-sidebar-foreground/70">
                 {email}
               </span>
             </span>
-            <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
+            <ChevronsUpDown className="size-3.5 shrink-0 text-sidebar-foreground/70" />
           </>
         )}
       </DropdownMenuTrigger>
