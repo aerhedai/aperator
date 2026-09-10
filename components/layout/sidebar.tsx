@@ -100,7 +100,7 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "flex h-full shrink-0 flex-col gap-4 overflow-hidden border-r border-border p-3 transition-[width] duration-200 ease-in-out",
+        "flex h-full shrink-0 flex-col gap-4 overflow-hidden border-r border-sidebar-border bg-sidebar p-3 text-sidebar-foreground transition-[width] duration-200 ease-in-out",
         collapsed ? "w-16 items-center" : "w-60",
       )}
     >
@@ -118,7 +118,7 @@ export function Sidebar({
                 type="button"
                 title="Search — coming soon"
                 aria-label="Search"
-                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="rounded-md p-1.5 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               >
                 <Search className="size-4" />
               </button>
@@ -126,7 +126,7 @@ export function Sidebar({
                 type="button"
                 onClick={() => setCollapsed(true)}
                 aria-label="Collapse sidebar"
-                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="rounded-md p-1.5 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               >
                 <PanelLeftClose className="size-4" />
               </button>
@@ -138,7 +138,7 @@ export function Sidebar({
             type="button"
             onClick={() => setCollapsed(false)}
             aria-label="Expand sidebar"
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="rounded-md p-1.5 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
             <PanelLeftOpen className="size-4" />
           </button>
@@ -165,14 +165,14 @@ export function Sidebar({
             )}
           >
             <div className="flex items-center justify-between px-1">
-              <span className="text-xs font-medium text-muted-foreground">
+              <span className="text-xs font-medium text-sidebar-foreground/70">
                 Spaces
               </span>
               <button
                 type="button"
                 title="Add a space — coming soon"
                 aria-label="Add a space"
-                className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="rounded-md p-1 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               >
                 <Plus className="size-3.5" />
               </button>
@@ -180,7 +180,7 @@ export function Sidebar({
             <button
               type="button"
               title="Coming soon"
-              className="flex items-center gap-2 rounded-md border border-dashed border-border px-2.5 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted"
+              className="flex items-center gap-2 rounded-md border border-dashed border-sidebar-border px-2.5 py-2 text-left text-xs text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent"
             >
               <Plus className="size-3.5 shrink-0" />
               Add a new workspace
@@ -189,7 +189,7 @@ export function Sidebar({
         </div>
       </div>
 
-      <div className="h-px w-full shrink-0 bg-border" />
+      <div className="h-px w-full shrink-0 bg-sidebar-border" />
 
       <nav
         className={cn(
@@ -214,7 +214,7 @@ export function Sidebar({
                 collapsed ? "size-8 justify-center px-0" : "px-2.5",
                 active
                   ? "bg-app-accent-soft text-app-accent-soft-foreground"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
               )}
             >
               <Icon className="size-4 shrink-0" />
@@ -243,7 +243,7 @@ export function Sidebar({
         })}
       </nav>
 
-      <div className="h-px w-full shrink-0 bg-border" />
+      <div className="h-px w-full shrink-0 bg-sidebar-border" />
 
       <div
         className={cn(
@@ -265,7 +265,7 @@ export function Sidebar({
             <button
               type="button"
               onClick={() => setChatsExpanded((expanded) => !expanded)}
-              className="flex items-center justify-between px-1 text-xs font-medium text-muted-foreground"
+              className="flex items-center justify-between px-1 text-xs font-medium text-sidebar-foreground/70"
             >
               Chats
               <ChevronDown
@@ -278,7 +278,7 @@ export function Sidebar({
             {chatsExpanded && (
               <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
                 {chatThreads.length === 0 ? (
-                  <p className="px-2.5 py-1 text-xs text-muted-foreground">
+                  <p className="px-2.5 py-1 text-xs text-sidebar-foreground/70">
                     No chats yet.
                   </p>
                 ) : (
@@ -292,7 +292,7 @@ export function Sidebar({
                           "truncate rounded-md px-2.5 py-1.5 text-xs transition-colors",
                           active
                             ? "bg-app-accent-soft text-app-accent-soft-foreground"
-                            : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                         )}
                       >
                         {thread.input}
@@ -308,7 +308,7 @@ export function Sidebar({
 
       <div
         className={cn(
-          "w-full shrink-0 border-t border-border pt-2",
+          "w-full shrink-0 border-t border-sidebar-border pt-2",
           collapsed && "flex justify-center",
         )}
       >
