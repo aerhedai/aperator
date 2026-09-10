@@ -12,6 +12,8 @@ import { createFindRecordTool } from "@/lib/mcp/tools/find-record";
 import { createGoogleDriveCreateFolderTool } from "@/lib/mcp/tools/google-drive-create-folder";
 import { createGoogleDrivePopulateTemplateTool } from "@/lib/mcp/tools/google-drive-populate-template";
 import { createGoogleDriveSaveFileTool } from "@/lib/mcp/tools/google-drive-save-file";
+import { createCreateRoutineTool } from "@/lib/mcp/tools/create-routine";
+import { createCreateTaskTool } from "@/lib/mcp/tools/create-task";
 import { createInstallTemplateTool } from "@/lib/mcp/tools/install-template";
 import { createInstallWorkflowTemplateTool } from "@/lib/mcp/tools/install-workflow-template";
 import { createInvokeAgentTool } from "@/lib/mcp/tools/invoke-agent";
@@ -237,6 +239,24 @@ export async function createMcpServer(
   register(createListTemplatesTool(organisationId), readOnly);
   register(createInstallTemplateTool(organisationId));
   register(createInstallWorkflowTemplateTool(organisationId));
+  // Reuse the exact same invokableAgents/invokableWorkflows lists computed
+  // above for invoke_agent/invoke_workflow — a task/routine plan step can
+  // only ever target something those two tools could also reach directly.
+  register(
+    createCreateTaskTool(
+      organisationId,
+      invokableAgents,
+      invokableWorkflows,
+      aiProvider,
+    ),
+  );
+  register(
+    createCreateRoutineTool(
+      organisationId,
+      invokableAgents,
+      invokableWorkflows,
+    ),
+  );
 
   // Discovered tools from connected external MCP servers — proxied here,
   // one registration per cached tool, so every existing tool-call path

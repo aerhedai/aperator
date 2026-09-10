@@ -210,6 +210,20 @@ export const TOOL_REGISTRY = [
     description:
       "Install a pre-built department (a classifier plus its handlers), creating a real, active workflow from it.",
   },
+  {
+    name: "create_task",
+    group: "Orchestration",
+    label: "Create task",
+    description:
+      "Create and immediately run a trackable one-off task made of one or more agent/workflow steps.",
+  },
+  {
+    name: "create_routine",
+    group: "Orchestration",
+    label: "Create routine",
+    description:
+      "Create a recurring routine — the same kind of plan as a task, but saved on a schedule instead of run immediately.",
+  },
 ] as const;
 
 export type ToolName = (typeof TOOL_REGISTRY)[number]["name"];

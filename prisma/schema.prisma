@@ -114,6 +114,34 @@ enum AgentExecutionMode {
   CHAT
 }
 
+// Two disjoint lifecycles share one column, distinguished by whether
+// Task.schedulePreset is set. A one-off Task (schedulePreset null) moves
+// PENDING → RUNNING → a terminal state exactly once, same vocabulary as
+// RunStatus's non-pause states. A Routine (schedulePreset set) never
+// reaches a terminal state itself — ACTIVE/PAUSED describe whether the
+// definition is currently armed to fire, not any single execution; each
+// firing's own outcome lives on its TaskRun instead (lib/tasks/).
+enum TaskStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+  ACTIVE
+  PAUSED
+}
+
+// A closed set of named recurrences, not raw cron — same "start narrow,
+// widen later" call already made for WorkflowTriggerType. Fires in UTC;
+// per-business timezone handling is future work, tracked in
+// docs/production-notes.md.
+enum TaskSchedulePreset {
+  HOURLY
+  DAILY_9AM
+  WEEKDAYS_9AM
+  WEEKLY_MONDAY_9AM
+}
+
 model Organisation {
   id         String   @id @default(cuid())
   // Clerk's Organization id — the real, session-verified identity every
@@ -166,6 +194,7 @@ model Organisation {
   knowledgeChunks     KnowledgeChunk[]
   agentTemplates      AgentTemplate[]
   workflowTemplates   WorkflowTemplate[]
+  tasks               Task[]
 }
 
 // The shape of a business's own data — a landlord's Properties, a law
@@ -443,14 +472,25 @@ model AgentRun {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
+  // Set only when this run is one step of a Task/Routine's plan
+  // (lib/tasks/run-task-plan.ts) rather than a standalone invocation —
+  // null for every other run, including one invoked ad hoc via
+  // invoke_agent/invoke_workflow outside a task plan. stepIndex is this
+  // run's 0-based position in that plan, letting the task detail page
+  // order its steps without re-deriving order from createdAt.
+  taskRunId String?
+  stepIndex Int?
+
   agent        Agent        @relation(fields: [agentId], references: [id])
   organisation Organisation @relation(fields: [organisationId], references: [id])
+  taskRun      TaskRun?     @relation(fields: [taskRunId], references: [id])
   steps        RunStep[]
   toolCalls    ToolCall[]
   approvals    Approval[]
 
   @@index([agentId])
   @@index([organisationId])
+  @@index([taskRunId])
 }
 
 model RunStep {
@@ -515,6 +555,75 @@ model Approval {
 
   @@index([agentRunId])
   @@index([organisationId])
+}
+
+// A unit of work told to the chat assistant in plain language — "email
+// John about the invoice," "post a weekly summary to Slack every Monday."
+// The assistant decides the plan once, when this is created (create_task /
+// create_routine — lib/mcp/tools/create-task.ts, create-routine.ts), as an
+// ordered list of agent/workflow invocations; that plan is data from then
+// on, never re-derived by an LLM at execution time (see `plan`'s own
+// comment) — the deliberate choice over re-running the assistant's live
+// reasoning on every Routine firing, which would cost tokens and vary
+// run to run for what should be the same recurring job.
+//
+// schedulePreset is what actually distinguishes a one-off Task from a
+// Routine — both are this same row. Null: a Task, executed immediately
+// when created, reaching a terminal TaskStatus once its single TaskRun
+// finishes. Set: a Routine, left ACTIVE/PAUSED indefinitely; the cron
+// sweep (app/api/cron/run-due-tasks/route.ts) creates a fresh TaskRun
+// every time the preset is due, replaying the same stored plan.
+//
+// Never cascade-deletes its TaskRuns (CLAUDE.md §4.7) — same reasoning as
+// AgentRun: a run history has no less value just because the thing that
+// produced it was deleted. Deleting a Task with run history is refused at
+// the FK level, same as an Agent.
+model Task {
+  id             String   @id @default(cuid())
+  organisationId String
+  title          String
+  instruction    String
+  // { steps: [{ targetType: "agent"|"workflow", targetId,
+  // instructionTemplate }] }, validated against
+  // lib/tasks/task-plan-schema.ts's taskPlanSchema. instructionTemplate may
+  // reference an earlier step's result via a literal "{{steps.N.response}}"
+  // placeholder (0-indexed), substituted at execution time by
+  // lib/tasks/run-task-plan.ts — this is how data threads from one agent's
+  // output into the next agent's input without any live reasoning about
+  // it. Json rather than a related table: this plan has no independent
+  // lifecycle from the Task that owns it, same reasoning as
+  // Agent.extractionFields.
+  plan           Json
+  schedulePreset TaskSchedulePreset?
+  status         TaskStatus          @default(PENDING)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  organisation Organisation @relation(fields: [organisationId], references: [id])
+  runs         TaskRun[]
+
+  @@index([organisationId])
+  @@index([organisationId, schedulePreset, status])
+}
+
+// One execution of a Task's plan — the one-off Task's only run, or one of
+// a Routine's many firings. Status uses the same RunStatus vocabulary as
+// AgentRun (including WAITING_FOR_APPROVAL) rather than a bespoke one:
+// a plan step that pauses for approval pauses the whole TaskRun exactly
+// the same way, resumed through the same Approval flow — see
+// lib/tasks/run-task-plan.ts.
+model TaskRun {
+  id          String    @id @default(cuid())
+  taskId      String
+  status      RunStatus @default(PENDING)
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  task      Task       @relation(fields: [taskId], references: [id])
+  agentRuns AgentRun[]
+
+  @@index([taskId])
 }
 
 // Stores one OAuth token set per organisation per provider. Tokens are
