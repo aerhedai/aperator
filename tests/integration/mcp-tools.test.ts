@@ -80,7 +80,7 @@ describe("MCP tool server", () => {
     await prisma.organisation.deleteMany({ where: { id: organisationId } });
   });
 
-  it("lists exactly the twenty-seven registered tools", async () => {
+  it("lists exactly the fifty-four registered tools", async () => {
     const { tools } = await client.listTools();
     const names = tools.map((tool) => tool.name).sort();
 
@@ -88,20 +88,47 @@ describe("MCP tool server", () => {
     // small and fixed, and a tool appearing here that nobody deliberately
     // added is the failure this catches (CLAUDE.md §4.5).
     expect(names).toEqual([
+      "GMAIL_APPLY_LABEL",
+      "GMAIL_ARCHIVE_MESSAGE",
+      "GMAIL_CREATE_DRAFT",
       "GMAIL_READ_INBOX",
+      "GMAIL_SEARCH_INBOX",
       "GMAIL_SEND_EMAIL",
       "GOOGLE_DRIVE_CREATE_FOLDER",
+      "GOOGLE_DRIVE_DELETE_FILE",
+      "GOOGLE_DRIVE_GET_FILE",
+      "GOOGLE_DRIVE_LIST_FOLDER",
       "GOOGLE_DRIVE_POPULATE_TEMPLATE",
       "GOOGLE_DRIVE_SAVE_FILE",
+      "GOOGLE_DRIVE_SEARCH_FILES",
+      "GOOGLE_DRIVE_SHARE_FILE",
+      "OUTLOOK_ARCHIVE_MESSAGE",
+      "OUTLOOK_CANCEL_CALENDAR_EVENT",
       "OUTLOOK_CHECK_CALENDAR_AVAILABILITY",
       "OUTLOOK_CREATE_CALENDAR_EVENT",
+      "OUTLOOK_CREATE_CONTACT",
+      "OUTLOOK_CREATE_DRAFT",
+      "OUTLOOK_FIND_CONTACT",
+      "OUTLOOK_LIST_CALENDAR_EVENTS",
       "OUTLOOK_READ_INBOX",
+      "OUTLOOK_SEARCH_INBOX",
       "OUTLOOK_SEND_EMAIL",
+      "OUTLOOK_UPDATE_CALENDAR_EVENT",
       "SHAREPOINT_CREATE_FOLDER",
+      "SHAREPOINT_DELETE_FILE",
+      "SHAREPOINT_GET_FILE",
+      "SHAREPOINT_LIST_FOLDER",
       "SHAREPOINT_POPULATE_TEMPLATE",
       "SHAREPOINT_SAVE_FILE",
+      "SHAREPOINT_SEARCH_FILES",
+      "SLACK_GET_USER_INFO",
+      "SLACK_LIST_CHANNELS",
       "SLACK_POST_MESSAGE",
+      "SLACK_READ_CHANNEL_HISTORY",
+      "SLACK_SEARCH_MESSAGES",
+      "TEAMS_LIST_CHANNELS",
       "TEAMS_POST_MESSAGE",
+      "TEAMS_READ_CHANNEL_MESSAGES",
       "create_record",
       "create_routine",
       "create_task",

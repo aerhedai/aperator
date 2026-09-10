@@ -35,6 +35,33 @@ import { createSharePointSaveFileTool } from "@/lib/mcp/tools/sharepoint-save-fi
 import { createSlackPostMessageTool } from "@/lib/mcp/tools/slack-post-message";
 import { createTeamsPostMessageTool } from "@/lib/mcp/tools/teams-post-message";
 import { createUpdateRecordTool } from "@/lib/mcp/tools/update-record";
+import { createGmailSearchInboxTool } from "@/lib/mcp/tools/gmail-search-inbox";
+import { createGmailArchiveMessageTool } from "@/lib/mcp/tools/gmail-archive-message";
+import { createGmailCreateDraftTool } from "@/lib/mcp/tools/gmail-create-draft";
+import { createGmailApplyLabelTool } from "@/lib/mcp/tools/gmail-apply-label";
+import { createOutlookSearchInboxTool } from "@/lib/mcp/tools/outlook-search-inbox";
+import { createOutlookArchiveMessageTool } from "@/lib/mcp/tools/outlook-archive-message";
+import { createOutlookCreateDraftTool } from "@/lib/mcp/tools/outlook-create-draft";
+import { createOutlookFindContactTool } from "@/lib/mcp/tools/outlook-find-contact";
+import { createOutlookCreateContactTool } from "@/lib/mcp/tools/outlook-create-contact";
+import { createSlackSearchMessagesTool } from "@/lib/mcp/tools/slack-search-messages";
+import { createSlackListChannelsTool } from "@/lib/mcp/tools/slack-list-channels";
+import { createSlackReadChannelHistoryTool } from "@/lib/mcp/tools/slack-read-channel-history";
+import { createSlackGetUserInfoTool } from "@/lib/mcp/tools/slack-get-user-info";
+import { createTeamsListChannelsTool } from "@/lib/mcp/tools/teams-list-channels";
+import { createTeamsReadChannelMessagesTool } from "@/lib/mcp/tools/teams-read-channel-messages";
+import { createOutlookUpdateCalendarEventTool } from "@/lib/mcp/tools/outlook-update-calendar-event";
+import { createOutlookCancelCalendarEventTool } from "@/lib/mcp/tools/outlook-cancel-calendar-event";
+import { createOutlookListCalendarEventsTool } from "@/lib/mcp/tools/outlook-list-calendar-events";
+import { createGoogleDriveSearchFilesTool } from "@/lib/mcp/tools/google-drive-search-files";
+import { createGoogleDriveListFolderTool } from "@/lib/mcp/tools/google-drive-list-folder";
+import { createGoogleDriveGetFileTool } from "@/lib/mcp/tools/google-drive-get-file";
+import { createGoogleDriveDeleteFileTool } from "@/lib/mcp/tools/google-drive-delete-file";
+import { createGoogleDriveShareFileTool } from "@/lib/mcp/tools/google-drive-share-file";
+import { createSharePointSearchFilesTool } from "@/lib/mcp/tools/sharepoint-search-files";
+import { createSharePointListFolderTool } from "@/lib/mcp/tools/sharepoint-list-folder";
+import { createSharePointGetFileTool } from "@/lib/mcp/tools/sharepoint-get-file";
+import { createSharePointDeleteFileTool } from "@/lib/mcp/tools/sharepoint-delete-file";
 import * as workflowService from "@/lib/workflows/workflow-service";
 
 // Marks a tool as having no side effects. Read-only tools are never
@@ -159,16 +186,37 @@ export async function createMcpServer(
   // Gmail
   register(createGmailReadInboxTool(organisationId, gmailId), readOnly);
   register(createGmailSendEmailTool(organisationId, gmailId));
+  register(createGmailSearchInboxTool(organisationId, gmailId), readOnly);
+  register(createGmailArchiveMessageTool(organisationId, gmailId));
+  register(createGmailCreateDraftTool(organisationId, gmailId));
+  register(createGmailApplyLabelTool(organisationId, gmailId));
 
   // Outlook
   register(createOutlookReadInboxTool(organisationId, outlookId), readOnly);
   register(createOutlookSendEmailTool(organisationId, outlookId));
+  register(createOutlookSearchInboxTool(organisationId, outlookId), readOnly);
+  register(createOutlookArchiveMessageTool(organisationId, outlookId));
+  register(createOutlookCreateDraftTool(organisationId, outlookId));
+  register(createOutlookFindContactTool(organisationId, outlookId), readOnly);
+  register(createOutlookCreateContactTool(organisationId, outlookId));
 
   // Slack
   register(createSlackPostMessageTool(organisationId, slackId));
+  register(createSlackSearchMessagesTool(organisationId, slackId), readOnly);
+  register(createSlackListChannelsTool(organisationId, slackId), readOnly);
+  register(
+    createSlackReadChannelHistoryTool(organisationId, slackId),
+    readOnly,
+  );
+  register(createSlackGetUserInfoTool(organisationId, slackId), readOnly);
 
   // Teams
   register(createTeamsPostMessageTool(organisationId, teamsId));
+  register(createTeamsListChannelsTool(organisationId, teamsId), readOnly);
+  register(
+    createTeamsReadChannelMessagesTool(organisationId, teamsId),
+    readOnly,
+  );
 
   // Outlook Calendar
   register(
@@ -176,16 +224,31 @@ export async function createMcpServer(
     readOnly,
   );
   register(createOutlookCreateCalendarEventTool(organisationId, calendarId));
+  register(createOutlookUpdateCalendarEventTool(organisationId, calendarId));
+  register(createOutlookCancelCalendarEventTool(organisationId, calendarId));
+  register(
+    createOutlookListCalendarEventsTool(organisationId, calendarId),
+    readOnly,
+  );
 
   // Google Drive
   register(createGoogleDriveCreateFolderTool(organisationId));
   register(createGoogleDriveSaveFileTool(organisationId));
   register(createGoogleDrivePopulateTemplateTool(organisationId));
+  register(createGoogleDriveSearchFilesTool(organisationId), readOnly);
+  register(createGoogleDriveListFolderTool(organisationId), readOnly);
+  register(createGoogleDriveGetFileTool(organisationId), readOnly);
+  register(createGoogleDriveDeleteFileTool(organisationId));
+  register(createGoogleDriveShareFileTool(organisationId));
 
   // SharePoint
   register(createSharePointCreateFolderTool(organisationId));
   register(createSharePointSaveFileTool(organisationId));
   register(createSharePointPopulateTemplateTool(organisationId));
+  register(createSharePointSearchFilesTool(organisationId), readOnly);
+  register(createSharePointListFolderTool(organisationId), readOnly);
+  register(createSharePointGetFileTool(organisationId), readOnly);
+  register(createSharePointDeleteFileTool(organisationId));
 
   // Orchestration — list_invokable first: it re-queries live at call time
   // (unlike invoke_agent/invoke_workflow's own descriptions below, which

@@ -55,6 +55,7 @@ function asAccessRefreshCredentials(
 
 interface SlackCredentials {
   botToken: string;
+  userAccessToken: string | null;
 }
 
 function asSlackCredentials(
@@ -65,7 +66,13 @@ function asSlackCredentials(
       "Slack integration is missing valid credentials — reconnect it from Settings.",
     );
   }
-  return { botToken: credentials.botToken };
+  return {
+    botToken: credentials.botToken,
+    userAccessToken:
+      typeof credentials.userAccessToken === "string"
+        ? credentials.userAccessToken
+        : null,
+  };
 }
 
 // Every connected account, across every provider — the data behind the
@@ -485,6 +492,41 @@ export async function getSlackBotToken(
     throw new Error("The bound action account is not a Slack account.");
   }
   return asSlackCredentials(integration.credentials).botToken;
+}
+
+/**
+ * The other half of a Slack connection's credentials, captured at connect
+ * time (SLACK_USER_SCOPES — see slack/oauth.ts) but unused until the
+ * SLACK_SEARCH_MESSAGES/SLACK_LIST_CHANNELS/SLACK_READ_CHANNEL_HISTORY/
+ * SLACK_GET_USER_INFO tools existed to need it: Slack's search.messages,
+ * conversations.list/history and users.info endpoints all require a user
+ * token, not a bot token. Null (rather than throwing) when the business's
+ * authorizing user declined the user-scope half of Slack's consent screen
+ * — a real, expected outcome (see SlackTokens.userAccessToken's own
+ * comment), left to each tool's own scope check
+ * (ensureScopeAvailable already denies these tools before this is ever
+ * called, since a declined user_scope means the relevant scopes are
+ * absent from grantedScopes) rather than an error message here.
+ */
+export async function getSlackUserToken(
+  organisationId: string,
+  integrationId?: string | null,
+): Promise<string | null> {
+  const integration = integrationId
+    ? await integrationRepository.findIntegrationById(
+        organisationId,
+        integrationId,
+      )
+    : await getDefaultIntegrationByProvider(organisationId, SLACK_PROVIDER);
+  if (!integration) {
+    throw new Error(
+      "Slack is not connected for this organisation. Connect it from Settings.",
+    );
+  }
+  if (integration.provider !== SLACK_PROVIDER) {
+    throw new Error("The bound action account is not a Slack account.");
+  }
+  return asSlackCredentials(integration.credentials).userAccessToken;
 }
 
 /**
