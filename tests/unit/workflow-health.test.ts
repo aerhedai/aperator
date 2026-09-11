@@ -39,7 +39,7 @@ describe("getWorkflowWarnings", () => {
       new Set(["gmail"]),
     );
     expect(warnings).toEqual([
-      "No classifier is assigned — this workflow can never route anything.",
+      "No classifier is assigned — this department can never route anything.",
     ]);
   });
 
@@ -54,14 +54,14 @@ describe("getWorkflowWarnings", () => {
       new Set(["gmail"]),
     );
     expect(warnings).toEqual([
-      "No active handler agent — even a matched message has nothing to run.",
+      "No active handler worker — even a matched message has nothing to run.",
     ]);
   });
 
   it("warns on an org-default EMAIL workflow when no Gmail or Outlook account is connected — the exact gap that left a real workflow silently inert", () => {
     const warnings = getWorkflowWarnings(workflow(), new Set(["google-drive"]));
     expect(warnings).toEqual([
-      "No Gmail or Outlook account is connected — this workflow can never receive real email.",
+      "No Gmail or Outlook account is connected — this department can never receive real email.",
     ]);
   });
 

@@ -28,7 +28,7 @@ export default async function AssistantSettingsPage() {
         <h2 className="text-xl font-semibold">Assistant</h2>
         <p className="text-sm text-muted-foreground">
           What your assistant is called, what it should do, and which of your
-          agents and tools it may use.
+          workers and tools it may use.
         </p>
       </div>
 

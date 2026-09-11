@@ -73,8 +73,8 @@ export default async function AgentDetailPage({
       </div>
       {runs.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          This agent has run history, so it can&rsquo;t be deleted — archive it
-          instead to keep it out of workflow dispatch.
+          This worker has activity history, so it can&rsquo;t be deleted —
+          archive it instead to keep it out of department dispatch.
         </p>
       )}
 
@@ -114,7 +114,7 @@ export default async function AgentDetailPage({
           <p className="text-sm text-muted-foreground">
             {toolNames.length > 0
               ? toolNames.join(", ")
-              : "No tools assigned — this agent can only reply with plain text."}
+              : "No tools assigned — this worker can only reply with plain text."}
           </p>
         </CardContent>
       </Card>
@@ -122,7 +122,7 @@ export default async function AgentDetailPage({
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium text-muted-foreground">
-            Run agent
+            Run worker
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -133,12 +133,12 @@ export default async function AgentDetailPage({
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium text-muted-foreground">
-            Runs
+            Activity
           </CardTitle>
         </CardHeader>
         <CardContent>
           {runs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No runs yet.</p>
+            <p className="text-sm text-muted-foreground">No activity yet.</p>
           ) : (
             <ul className="flex flex-col gap-2">
               {runs.map((run) => (

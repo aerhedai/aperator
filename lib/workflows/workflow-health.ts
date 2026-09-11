@@ -35,7 +35,7 @@ export function getWorkflowWarnings(
   const hasClassifier = workflow.members.some((m) => m.role === "CLASSIFIER");
   if (!hasClassifier) {
     warnings.push(
-      "No classifier is assigned — this workflow can never route anything.",
+      "No classifier is assigned — this department can never route anything.",
     );
   }
 
@@ -44,7 +44,7 @@ export function getWorkflowWarnings(
   );
   if (!hasActiveHandler) {
     warnings.push(
-      "No active handler agent — even a matched message has nothing to run.",
+      "No active handler worker — even a matched message has nothing to run.",
     );
   }
 
@@ -54,7 +54,7 @@ export function getWorkflowWarnings(
     !EMAIL_TRIGGER_PROVIDERS.some((p) => connectedProviders.has(p))
   ) {
     warnings.push(
-      "No Gmail or Outlook account is connected — this workflow can never receive real email.",
+      "No Gmail or Outlook account is connected — this department can never receive real email.",
     );
   }
 

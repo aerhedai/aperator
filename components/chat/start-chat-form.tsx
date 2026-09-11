@@ -75,7 +75,7 @@ export function StartChatForm() {
       >
         <Textarea
           name="message"
-          placeholder="Ask the assistant anything, or ask it to use one of the agents it's been granted…"
+          placeholder="Ask the assistant anything, or ask it to use one of the workers it's been granted…"
           className="min-h-24 resize-none border-none bg-transparent px-1 shadow-none focus-visible:ring-0"
           required
         />

@@ -50,10 +50,10 @@ export default async function NewAgentPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold">Create agent</h1>
+      <h1 className="text-xl font-semibold">Create worker</h1>
       <AgentForm
         action={createAgentAction}
-        submitLabel="Create agent"
+        submitLabel="Create worker"
         templates={templates}
         preselectedTemplate={preselectedTemplate}
         gmailIntegrations={gmailIntegrations.map((i) => ({

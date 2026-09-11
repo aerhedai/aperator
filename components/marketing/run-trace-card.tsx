@@ -13,7 +13,11 @@ const STEPS: { label: string; detail: string; tone?: "success" | "warning" }[] =
       tone: "warning",
     },
     { label: "GMAIL_SEND_EMAIL", detail: "Quote sent" },
-    { label: "Run completed", detail: "8.4s · 375 tokens", tone: "success" },
+    {
+      label: "Activity completed",
+      detail: "8.4s · 375 tokens",
+      tone: "success",
+    },
   ];
 
 // The signature element of the landing page: a real run trace, not a
@@ -29,7 +33,7 @@ export function RunTraceCard() {
         <span className="size-2.5 rounded-full bg-white/20" />
         <span className="size-2.5 rounded-full bg-white/20" />
         <span className="ml-3 font-mono text-xs text-marketing-ink-foreground/50">
-          Run #1029 · Quote Agent
+          Activity #1029 · Quote Worker
         </span>
       </div>
 

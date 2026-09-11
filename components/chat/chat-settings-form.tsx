@@ -132,15 +132,15 @@ export function ChatSettingsForm({
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label>Agents this can invoke</Label>
+        <Label>Workers this can invoke</Label>
         <p className="text-xs text-muted-foreground">
-          Every agent in this organisation is available to the assistant by
-          default (as long as the &ldquo;Invoke agent&rdquo; tool above is also
+          Every worker in this organisation is available to the assistant by
+          default (as long as the &ldquo;Invoke worker&rdquo; tool above is also
           ticked) — untick any you&rsquo;d rather keep off-limits.
         </p>
         {candidates.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No other agents exist yet — anything you create next will be
+            No other workers exist yet — anything you create next will be
             available to the assistant automatically.
           </p>
         ) : (

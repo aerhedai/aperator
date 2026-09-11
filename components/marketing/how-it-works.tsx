@@ -1,8 +1,8 @@
 const STAGES = [
   "Trigger",
-  "Agent",
+  "Worker",
   "Tools",
-  "Policy",
+  "Rule",
   "Approval",
   "Action",
   "Audit trail",
@@ -13,7 +13,7 @@ export function HowItWorks() {
     <section className="border-y border-border bg-secondary/40">
       <div className="mx-auto max-w-6xl px-6 py-20">
         <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
-          How a run actually flows
+          How an activity actually flows
         </p>
         <h2 className="mt-3 font-heading text-2xl font-bold tracking-tight sm:text-3xl">
           The same fixed pipeline, every time.
@@ -35,7 +35,7 @@ export function HowItWorks() {
         </div>
 
         <p className="mt-8 max-w-2xl text-sm text-muted-foreground">
-          Approval only appears in the loop when policy requires it — a £7,500
+          Approval only appears in the loop when a rule requires it — a £7,500
           quote goes straight through; a £27,000 one waits for a person. Nothing
           skips the audit trail either way.
         </p>

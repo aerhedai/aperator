@@ -48,7 +48,7 @@ export function WorkflowList({
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Search workflows…"
+            placeholder="Search departments…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="pl-8"
@@ -85,8 +85,8 @@ export function WorkflowList({
       {filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {query
-            ? "No workflows match your search."
-            : "No workflows yet — a workflow ties a classifier agent to the handler agents it can route to."}
+            ? "No departments match your search."
+            : "No departments yet — a department ties a classifier worker to the handler workers it can route to."}
         </p>
       ) : (
         <div className="flex flex-col gap-4">
@@ -112,8 +112,8 @@ export function WorkflowList({
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-muted-foreground">
-                          {workflow.members.length} agent
-                          {workflow.members.length === 1 ? "" : "s"}
+                          {workflow.members.length}{" "}
+                          {workflow.members.length === 1 ? "worker" : "workers"}
                         </span>
                         <Badge variant="outline">{workflow.trigger}</Badge>
                         <AgentStatusBadge status={workflow.status} />

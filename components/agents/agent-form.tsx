@@ -366,7 +366,7 @@ export function AgentForm({
                 className="w-full rounded-md border border-border bg-transparent p-3 text-sm"
               />
               <p className="text-xs text-muted-foreground">
-                What this agent handles. The classifier routes inbound work by
+                What this worker handles. The classifier routes inbound work by
                 comparing messages against this, so be specific about scope.
               </p>
               {state.fieldErrors?.description && (
@@ -447,11 +447,11 @@ export function AgentForm({
                 />
                 <p className="text-sm font-medium">
                   {agent?.executionMode === "LOOP" ? (
-                    <>This agent runs freely (LOOP mode)</>
+                    <>This worker runs freely (LOOP mode)</>
                   ) : (
                     <>
-                      This agent runs the built-in &ldquo;{agent?.pipelineKey}
-                      &rdquo; process
+                      This worker runs the built-in &ldquo;
+                      {agent?.pipelineKey}&rdquo; process
                     </>
                   )}
                 </p>
@@ -460,16 +460,16 @@ export function AgentForm({
                     <>
                       It decides which of its granted tools to call, turn by
                       turn, rather than following a fixed step sequence — this
-                      is how every workflow&rsquo;s classifier runs. It
+                      is how every department&rsquo;s classifier runs. It
                       isn&rsquo;t editable as steps here; its name, description,
                       instructions, model, and tool grants above still apply and
                       can be changed freely.
                     </>
                   ) : (
                     <>
-                      It was created before agents became step sequences, and
+                      It was created before workers became step sequences, and
                       keeps working exactly as it did. Its steps aren&rsquo;t
-                      editable here — to move it onto steps, create a new agent
+                      editable here — to move it onto steps, create a new worker
                       from a template and retire this one.
                     </>
                   )}
@@ -605,7 +605,7 @@ export function AgentForm({
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
-                A tool call this agent isn&rsquo;t granted here is refused at
+                A tool call this worker isn&rsquo;t granted here is refused at
                 runtime, even if the model asks for it.
               </p>
               {state.fieldErrors?.toolNames && (
@@ -647,7 +647,7 @@ export function AgentForm({
               />
               <p className="text-xs text-muted-foreground">
                 Comma-separated. If an inbound message contains one of these
-                words and no other agent&rsquo;s keywords also match, routing
+                words and no other worker&rsquo;s keywords also match, routing
                 skips the LLM classifier entirely. Leave blank to always ask the
                 classifier.
               </p>
@@ -669,9 +669,9 @@ export function AgentForm({
                 ))}
               </select>
               <p className="text-xs text-muted-foreground">
-                Which connected account this agent sends from. Leave as default
+                Which connected account this worker sends from. Leave as default
                 unless this business has connected more than one and needs
-                different agents replying from different addresses.
+                different workers replying from different addresses.
               </p>
             </div>
           </div>
