@@ -20,12 +20,14 @@ export default async function EditAgentPage({
     templates,
     gmailIntegrations,
     mcpIntegrations,
+    apiIntegrations,
     allIntegrations,
   ] = await Promise.all([
     agentService.getAgent(organisation.id, id),
     templateService.listTemplates(organisation.id),
     integrationService.listIntegrationsByProvider(organisation.id, "gmail"),
     integrationService.listIntegrationsByProvider(organisation.id, "mcp"),
+    integrationService.listIntegrationsByProvider(organisation.id, "api"),
     integrationService.listIntegrations(organisation.id),
   ]);
 
@@ -51,12 +53,21 @@ export default async function EditAgentPage({
     tools: (integration.config as { tools?: DiscoveredMcpTool[] }).tools ?? [],
   }));
 
+  const apiConnections = apiIntegrations.map((integration) => ({
+    id: integration.id,
+    label: integration.name,
+  }));
+
   // Scope-based tool availability (docs/provider-specific-tools-design.md)
   // needs every connected account's provider and granted scopes, not just
-  // Gmail's — mcp connections are excluded since their tools are handled
-  // entirely separately, via mcpConnections above.
+  // Gmail's — mcp and api connections are excluded since their tools are
+  // handled entirely separately, via mcpConnections/apiConnections above.
   const connectedIntegrations = allIntegrations
-    .filter((i) => i.provider !== integrationService.MCP_PROVIDER)
+    .filter(
+      (i) =>
+        i.provider !== integrationService.MCP_PROVIDER &&
+        i.provider !== integrationService.API_PROVIDER,
+    )
     .map((i) => ({
       provider: i.provider,
       grantedScopes:
@@ -81,6 +92,7 @@ export default async function EditAgentPage({
         connectedIntegrations={connectedIntegrations}
         initialStepsConfig={initialStepsConfig}
         mcpConnections={mcpConnections}
+        apiConnections={apiConnections}
       />
     </div>
   );

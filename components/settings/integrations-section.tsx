@@ -10,6 +10,7 @@ import {
   disconnectIntegrationAction,
   refreshMcpServerToolsAction,
 } from "@/app/(shell)/(app)/settings/actions";
+import { ApiConnectForm } from "@/components/settings/api-connect-form";
 import { IntegrationIcon } from "@/components/settings/integration-icon";
 import { McpServerConnectForm } from "@/components/settings/mcp-server-connect-form";
 import { WebhookAccountForm } from "@/components/settings/webhook-account-form";
@@ -34,18 +35,23 @@ import {
 import { OUTLOOK_INBOX_FOLDER } from "@/lib/integrations/outlook/client";
 
 const MCP_PROVIDER: IntegrationProviderName = "mcp";
+const API_PROVIDER: IntegrationProviderName = "api";
 
 // Every first-party integration a business can search for and connect.
-// "mcp" is deliberately excluded — connecting a custom MCP server isn't
-// "one account of a fixed provider," it's an open-ended list of distinct
-// servers, so it gets its own always-visible action (AddMcpServerDialog)
-// next to the search bar instead of competing for space in a searchable
-// grid of fixed providers.
+// "mcp" and "api" are deliberately excluded — connecting a custom MCP
+// server or a custom API isn't "one account of a fixed provider," it's an
+// open-ended list of distinct servers, so each gets its own always-visible
+// action (AddMcpServerDialog / AddApiConnectionDialog) next to the search
+// bar instead of competing for space in a searchable grid of fixed
+// providers.
 const SEARCHABLE_INTEGRATIONS = INTEGRATION_REGISTRY.filter(
-  (entry) => entry.provider !== MCP_PROVIDER,
+  (entry) => entry.provider !== MCP_PROVIDER && entry.provider !== API_PROVIDER,
 );
 const MCP_REGISTRY_ENTRY = INTEGRATION_REGISTRY.find(
   (entry) => entry.provider === MCP_PROVIDER,
+)!;
+const API_REGISTRY_ENTRY = INTEGRATION_REGISTRY.find(
+  (entry) => entry.provider === API_PROVIDER,
 )!;
 
 export interface DisplayAccount {
@@ -436,6 +442,59 @@ function ConnectedMcpServers({ accounts }: { accounts: DisplayAccount[] }) {
   );
 }
 
+// Same reasoning as AddMcpServerDialog — a custom API connection has no
+// fixed entry in the searchable grid, just an always-visible entry point.
+function AddApiConnectionDialog() {
+  return (
+    <Dialog>
+      <DialogTrigger
+        render={
+          <Button variant="outline">
+            <Plus className="size-4" />
+            Add API connection
+          </Button>
+        }
+      />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Connect a custom API</DialogTitle>
+          <DialogDescription>
+            {API_REGISTRY_ENTRY.description}
+          </DialogDescription>
+        </DialogHeader>
+        <ApiConnectForm />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Same reasoning as ConnectedMcpServers — each row is its own distinct
+// base URL and credential, nothing to group behind a "Configure" dialog.
+// No "Refresh" action here (unlike MCP): there's no discovered tool list
+// to go stale, just the one fixed call_api capability.
+function ConnectedApiConnections({ accounts }: { accounts: DisplayAccount[] }) {
+  if (accounts.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm font-medium">Connected API connections</p>
+      {accounts.map((account) => (
+        <div
+          key={account.id}
+          className="flex items-center justify-between rounded-md border border-border p-3 text-sm"
+        >
+          <span className="font-mono">{account.name}</span>
+          <form action={disconnectIntegrationAction.bind(null, account.id)}>
+            <Button type="submit" variant="outline" size="sm">
+              Disconnect
+            </Button>
+          </form>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function IntegrationsSection({
   accountsByProvider,
   connectedProvider,
@@ -483,6 +542,7 @@ export function IntegrationsSection({
           />
         </div>
         <AddMcpServerDialog />
+        <AddApiConnectionDialog />
       </div>
 
       {filteredIntegrations.length === 0 ? (
@@ -503,6 +563,9 @@ export function IntegrationsSection({
       )}
 
       <ConnectedMcpServers accounts={accountsByProvider[MCP_PROVIDER] ?? []} />
+      <ConnectedApiConnections
+        accounts={accountsByProvider[API_PROVIDER] ?? []}
+      />
     </div>
   );
 }

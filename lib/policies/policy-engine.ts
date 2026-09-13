@@ -1,6 +1,7 @@
 // Deterministic, application-code policy checks — the LLM recommends an
 // action, this decides whether it's actually permitted (CLAUDE.md §4.6).
 
+import { parseApiToolName } from "@/lib/integrations/api/tool-naming";
 import * as integrationService from "@/lib/integrations/integration-service";
 import { parseMcpToolName } from "@/lib/integrations/mcp/tool-naming";
 
@@ -59,8 +60,22 @@ const REQUIRES_APPROVAL_BEFORE_EXECUTION = new Set([
 export async function requiresApprovalBeforeExecution(
   toolName: string,
   organisationId: string,
+  args?: Record<string, unknown>,
 ): Promise<boolean> {
   if (REQUIRES_APPROVAL_BEFORE_EXECUTION.has(toolName)) return true;
+
+  // call_api can reach any path on its pinned connection with any method —
+  // unlike every other tool here, its consequence depends entirely on
+  // *this* call's own arguments, not just its name. GET/HEAD is a read
+  // with no side effect; anything else is a mutation on a system Aperator
+  // has no way to know the blast radius of, so it requires a human every
+  // time, with no per-connection exception yet (that needs policies as
+  // data, CLAUDE.md §4.6, same gap as everywhere else this hardcoded list
+  // can't express a business's own rule).
+  if (parseApiToolName(toolName)) {
+    const method = typeof args?.method === "string" ? args.method : null;
+    return method !== "GET" && method !== "HEAD";
+  }
 
   const parsed = parseMcpToolName(toolName);
   if (!parsed) return false;

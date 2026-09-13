@@ -116,6 +116,46 @@ export async function createMcpServerAccountAction(
   }
 }
 
+export type ApiConnectionFormState = {
+  error?: string;
+  connected?: { integrationId: string };
+};
+
+export async function createApiConnectionAction(
+  _prevState: ApiConnectionFormState,
+  formData: FormData,
+): Promise<ApiConnectionFormState> {
+  const label = formData.get("label");
+  const baseUrl = formData.get("baseUrl");
+  const token = formData.get("token");
+  if (typeof label !== "string" || label.trim().length === 0) {
+    return { error: "Label is required." };
+  }
+  if (typeof baseUrl !== "string" || baseUrl.trim().length === 0) {
+    return { error: "Base URL is required." };
+  }
+  if (typeof token !== "string" || token.trim().length === 0) {
+    return { error: "Bearer token is required." };
+  }
+
+  const organisation = await getCurrentOrganisation();
+  try {
+    const integration = await integrationService.connectApiConnection(
+      organisation.id,
+      { label: label.trim(), baseUrl: baseUrl.trim(), token: token.trim() },
+    );
+    revalidatePath("/settings/integrations");
+    return { connected: { integrationId: integration.id } };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? `Couldn't connect: ${error.message}`
+          : "Couldn't connect to that API.",
+    };
+  }
+}
+
 // Bound to a plain <form action={...}> in integrations-section.tsx, not a
 // useActionState one — there's no state slot to surface an error message
 // into today (see createMcpServerAccountAction's McpServerFormState for

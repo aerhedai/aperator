@@ -20,6 +20,7 @@ import { createInvokeAgentTool } from "@/lib/mcp/tools/invoke-agent";
 import { createListInvokableTool } from "@/lib/mcp/tools/list-invokable";
 import { createInvokeWorkflowTool } from "@/lib/mcp/tools/invoke-workflow";
 import { createListTemplatesTool } from "@/lib/mcp/tools/list-templates";
+import { createCallApiTool } from "@/lib/mcp/tools/call-api";
 import { createMcpProxyTool } from "@/lib/mcp/tools/mcp-proxy-tool";
 import { createOutlookCheckCalendarAvailabilityTool } from "@/lib/mcp/tools/outlook-check-calendar-availability";
 import { createOutlookCreateCalendarEventTool } from "@/lib/mcp/tools/outlook-create-calendar-event";
@@ -350,6 +351,35 @@ export async function createMcpServer(
     } catch {
       // Malformed cached config on this one row — skip it, don't fail the
       // whole server build over one bad connection.
+      continue;
+    }
+  }
+
+  // Connected "Custom API" connections — one call_api registration per
+  // connection, same isolation reasoning as the MCP loop above: one
+  // malformed row must never take down the rest of the server build. No
+  // readOnly hint here (unlike the MCP loop's per-tool readOnlyHint) —
+  // call_api's risk depends on the method *this specific call* uses, not
+  // on the connection itself, so it's decided dynamically in
+  // policy-engine.ts rather than declared at registration time.
+  const apiConnections = await integrationRepository.findIntegrationsByProvider(
+    organisationId,
+    integrationService.API_PROVIDER,
+  );
+  for (const connection of apiConnections) {
+    try {
+      const config = connection.config as unknown as { baseUrl: string };
+      const token = connection.credentials?.token as string | undefined;
+      if (!token || !config.baseUrl) continue;
+      register(
+        createCallApiTool(
+          connection.id,
+          connection.name,
+          config.baseUrl,
+          token,
+        ),
+      );
+    } catch {
       continue;
     }
   }
