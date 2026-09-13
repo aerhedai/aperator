@@ -77,6 +77,16 @@ enum WorkflowTriggerType {
   // ACTIVE and independently addressable by id, unlike EMAIL/WEBHOOK
   // where an inbound event needs exactly one deterministic recipient.
   MANUAL
+  // Wakes itself on Workflow.schedulePreset rather than waiting for an
+  // inbound message — the cron sweep (app/api/cron/run-due-tasks)
+  // dispatches through the same classify-then-handle path as EMAIL/
+  // WEBHOOK (lib/routing/dispatch.ts's dispatchScheduledWorkflow), just
+  // with a synthetic input (Workflow.scheduledPrompt) standing in for
+  // real inbound content. Exempt from the one-ACTIVE-per-trigger rule for
+  // the same reason MANUAL is: nothing needs a single deterministic
+  // recipient, so any number of scheduled departments may be ACTIVE at
+  // once, each on its own preset.
+  SCHEDULE
 }
 
 enum WorkflowAgentRole {
@@ -132,7 +142,10 @@ enum TaskStatus {
 }
 
 // A closed set of named recurrences, not raw cron — same "start narrow,
-// widen later" call already made for WorkflowTriggerType. Fires in UTC;
+// widen later" call already made for WorkflowTriggerType. Shared verbatim
+// between Task.schedulePreset (a Routine) and Workflow.schedulePreset (a
+// SCHEDULE-triggered department) — one cadence vocabulary, one cron sweep,
+// rather than a duplicate enum per schedulable thing. Fires in UTC;
 // per-business timezone handling is future work, tracked in
 // docs/production-notes.md. No HOURLY option: the cron sweep itself
 // (vercel.json) only fires once a day — Vercel's Hobby plan caps cron
@@ -146,25 +159,25 @@ enum TaskSchedulePreset {
 }
 
 model Organisation {
-  id         String   @id @default(cuid())
+  id               String   @id @default(cuid())
   // Clerk's Organization id — the real, session-verified identity every
   // request's org context resolves against (lib/organisations/current-organisation.ts).
   // Required: every Organisation row that exists came from a real Clerk
   // sign-in, provisioned lazily on first sight of a not-yet-seen org.
-  clerkOrgId String   @unique
-  name       String
+  clerkOrgId       String   @unique
+  name             String
   // ISO 4217 code (e.g. "GBP", "USD"). Plain string, not an enum — ISO 4217
   // has ~180 codes; a Postgres enum would need a migration per new currency
   // supported. What the app actually accepts is constrained at the
   // application layer instead (lib/currency/currency-symbols.ts).
-  currency   String   @default("GBP")
+  currency         String   @default("GBP")
   // Set by the business itself in Settings — this app has no legal team of
   // its own to author real Terms of Service/Privacy Policy text, so these
   // are just outbound links to wherever the business hosts its own,
   // surfaced consistently in the product rather than fabricated content.
   // Null means "not set yet."
-  termsUrl   String?
-  privacyUrl String?
+  termsUrl         String?
+  privacyUrl       String?
   // Which connected AI provider Integration ("ollama" or "gemini") every
   // agent run in this org actually calls — see
   // lib/ai/organisation-ai-provider.ts. Plain string, not an enum, same
@@ -431,6 +444,28 @@ model Workflow {
   // practice, optional for EMAIL where a generic org-wide fallback still
   // makes sense.
   triggerIntegrationId String?
+  // SCHEDULE-only: which named recurrence wakes this department — see
+  // TaskSchedulePreset's own comment (shared with Task/Routine). Null for
+  // every other trigger; required by workflowInputSchema whenever
+  // trigger is SCHEDULE.
+  schedulePreset       TaskSchedulePreset?
+  // SCHEDULE-only: when this department last fired, set at the start of
+  // the attempt (not on success) by the same cron sweep that fires
+  // Routines — mirrors how a Routine's "last run" is really its latest
+  // TaskRun.createdAt, set the moment a firing begins. Set this way (not
+  // "on success only") so a department whose handler keeps failing is
+  // still attempted at most once per sweep rather than retried every time
+  // the sweep runs that day.
+  lastScheduledFireAt  DateTime?
+  // SCHEDULE-only: the synthetic input fed to the classifier each firing,
+  // standing in for the real inbound content EMAIL/WEBHOOK triggers have
+  // and a scheduled fire doesn't. Null falls back to a generic default
+  // (dispatchScheduledWorkflow's own DEFAULT_SCHEDULED_PROMPT) — a
+  // template author should usually set something specific ("check for
+  // overdue invoices and low stock"), since the classifier is expected to
+  // investigate current state via its own granted tools rather than
+  // purely categorize this fixed text.
+  scheduledPrompt      String?
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
@@ -582,7 +617,7 @@ model Approval {
 // produced it was deleted. Deleting a Task with run history is refused at
 // the FK level, same as an Agent.
 model Task {
-  id             String   @id @default(cuid())
+  id             String              @id @default(cuid())
   organisationId String
   title          String
   instruction    String
@@ -713,7 +748,7 @@ model KnowledgeDocument {
 }
 
 model KnowledgeChunk {
-  id             String @id @default(cuid())
+  id             String                      @id @default(cuid())
   documentId     String
   organisationId String
   // Order within the source document, so retrieved chunks can be shown
@@ -726,7 +761,7 @@ model KnowledgeChunk {
   // through raw SQL in lib/knowledge/. Nullable so a chunk can exist
   // before its embedding is generated.
   embedding      Unsupported("vector(768)")?
-  createdAt      DateTime                   @default(now())
+  createdAt      DateTime                    @default(now())
 
   // Cascade: a chunk has no meaning without its document, and unlike a
   // run's audit trail there's nothing here worth preserving separately.
@@ -751,7 +786,7 @@ model KnowledgeChunk {
 // reason: null means a built-in template visible to everyone, set means a
 // business's own private one.
 model AgentTemplate {
-  id             String  @id @default(cuid())
+  id             String   @id @default(cuid())
   organisationId String?
   name           String
   description    String
@@ -763,17 +798,17 @@ model AgentTemplate {
   // anything needing to check something and *then* decide what to do
   // (check calendar availability, then maybe book) needs a real
   // tool-calling loop instead.
-  categoryType   String  @default("steps")
+  categoryType   String   @default("steps")
   // LOOP-only. Ignored for every other categoryType, which instead builds
   // its own generic instructions from name+description at install time
   // (see installAgentSpec) — left empty here rather than duplicating that
   // wrapper text into every row.
-  instructions   String  @default("")
+  instructions   String   @default("")
   // The step programme, same shape Agent.pipelineConfig holds and
   // validated by the same schema (lib/harness/steps/schema.ts) — a
   // template that wouldn't run is not a template. Only meaningful when
   // categoryType is "steps".
-  steps          Json    @default("{}")
+  steps          Json     @default("{}")
   // Tools the steps need. Installing a template pre-ticks these rather
   // than granting them silently: a tool an agent holds without anyone
   // choosing it is exactly what the per-agent grant model exists to stop.
@@ -793,10 +828,10 @@ model AgentTemplate {
 // template's handlers are never shared with a standalone single-agent
 // template — there is nothing for a foreign key to point at.
 model WorkflowTemplate {
-  id             String  @id @default(cuid())
-  organisationId String?
-  name           String
-  description    String
+  id                     String   @id @default(cuid())
+  organisationId         String?
+  name                   String
+  description            String
   // The classifier's own system instructions. A single generic default
   // works for every department (selectHandler's own classifyIntent call
   // appends the real candidate list at classification time — this is
@@ -806,15 +841,15 @@ model WorkflowTemplate {
   // Array of handler specs (see lib/workflows/workflow-template-types.ts
   // for the shape) — each installs as its own real Agent, same validation
   // path a hand-built one goes through.
-  handlers       Json     @default("[]")
+  handlers               Json     @default("[]")
   // Record Type names (from lib/records/starter-record-types.ts) this
   // template's handlers need to exist before they can do anything — e.g.
   // a Lead-intake handler needs a Lead type to write to. Seeded once at
   // install time, same reasoning as provision-email-workflow.ts bringing
   // Product/Customer with it.
-  recordTypes    String[] @default([])
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  recordTypes            String[] @default([])
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   organisation Organisation? @relation(fields: [organisationId], references: [id])
 

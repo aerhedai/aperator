@@ -21,7 +21,7 @@ export function getWorkflowWarnings(
     triggerIntegrationId: string | null;
     members: {
       role: WorkflowAgentRole;
-      agent: { status: AgentStatus };
+      agent: { status: AgentStatus; tools: unknown[] };
     }[];
   },
   connectedProviders: Set<string>,
@@ -56,6 +56,21 @@ export function getWorkflowWarnings(
     warnings.push(
       "No Gmail or Outlook account is connected — this department can never receive real email.",
     );
+  }
+
+  // A SCHEDULE classifier is fed the same fixed prompt every firing (see
+  // dispatchScheduledWorkflow) — with no tools of its own, it has no way
+  // to check current state, so every firing would produce the same
+  // static classification instead of genuinely deciding anything.
+  if (workflow.trigger === "SCHEDULE") {
+    const classifierMember = workflow.members.find(
+      (m) => m.role === "CLASSIFIER",
+    );
+    if (classifierMember && classifierMember.agent.tools.length === 0) {
+      warnings.push(
+        "This department's classifier has no tools granted — it can only ever produce the same result on every scheduled firing, since it has no way to check current state.",
+      );
+    }
   }
 
   return warnings;

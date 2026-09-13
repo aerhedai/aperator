@@ -10,8 +10,14 @@ function workflow(
     trigger: "EMAIL" as const,
     triggerIntegrationId: null,
     members: [
-      { role: "CLASSIFIER" as const, agent: { status: "ACTIVE" as const } },
-      { role: "HANDLER" as const, agent: { status: "ACTIVE" as const } },
+      {
+        role: "CLASSIFIER" as const,
+        agent: { status: "ACTIVE" as const, tools: [{}] },
+      },
+      {
+        role: "HANDLER" as const,
+        agent: { status: "ACTIVE" as const, tools: [{}] },
+      },
     ],
     ...overrides,
   };
@@ -34,7 +40,7 @@ describe("getWorkflowWarnings", () => {
   it("warns when an ACTIVE workflow has no classifier", () => {
     const warnings = getWorkflowWarnings(
       workflow({
-        members: [{ role: "HANDLER", agent: { status: "ACTIVE" } }],
+        members: [{ role: "HANDLER", agent: { status: "ACTIVE", tools: [] } }],
       }),
       new Set(["gmail"]),
     );
@@ -47,8 +53,8 @@ describe("getWorkflowWarnings", () => {
     const warnings = getWorkflowWarnings(
       workflow({
         members: [
-          { role: "CLASSIFIER", agent: { status: "ACTIVE" } },
-          { role: "HANDLER", agent: { status: "ARCHIVED" } },
+          { role: "CLASSIFIER", agent: { status: "ACTIVE", tools: [{}] } },
+          { role: "HANDLER", agent: { status: "ARCHIVED", tools: [] } },
         ],
       }),
       new Set(["gmail"]),
@@ -89,5 +95,45 @@ describe("getWorkflowWarnings", () => {
   it("reports multiple independent problems at once", () => {
     const warnings = getWorkflowWarnings(workflow({ members: [] }), new Set());
     expect(warnings).toHaveLength(3);
+  });
+
+  it("warns when a SCHEDULE workflow's classifier has no tools granted", () => {
+    const warnings = getWorkflowWarnings(
+      workflow({
+        trigger: "SCHEDULE",
+        triggerIntegrationId: null,
+        members: [
+          { role: "CLASSIFIER", agent: { status: "ACTIVE", tools: [] } },
+          { role: "HANDLER", agent: { status: "ACTIVE", tools: [{}] } },
+        ],
+      }),
+      new Set(),
+    );
+    expect(warnings).toEqual([
+      "This department's classifier has no tools granted — it can only ever produce the same result on every scheduled firing, since it has no way to check current state.",
+    ]);
+  });
+
+  it("does not warn about a toolless classifier on a SCHEDULE workflow that actually has tools", () => {
+    const warnings = getWorkflowWarnings(
+      workflow({ trigger: "SCHEDULE", triggerIntegrationId: null }),
+      new Set(),
+    );
+    expect(warnings).toEqual([]);
+  });
+
+  it("never checks for an email account, or a toolless classifier, on a non-SCHEDULE trigger", () => {
+    const warnings = getWorkflowWarnings(
+      workflow({
+        trigger: "WEBHOOK",
+        triggerIntegrationId: null,
+        members: [
+          { role: "CLASSIFIER", agent: { status: "ACTIVE", tools: [] } },
+          { role: "HANDLER", agent: { status: "ACTIVE", tools: [{}] } },
+        ],
+      }),
+      new Set(),
+    );
+    expect(warnings).toEqual([]);
   });
 });

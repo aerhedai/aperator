@@ -167,6 +167,60 @@ export async function dispatchInboundMessage(
   };
 }
 
+// Fed to the classifier when nothing was actually set on the workflow —
+// see Workflow.scheduledPrompt's schema.prisma comment. Generic enough to
+// make sense for any department, since a template author who didn't
+// bother setting a specific one still gets a coherent instruction rather
+// than an empty string.
+const DEFAULT_SCHEDULED_PROMPT =
+  "Perform your scheduled review now: check current state using your granted tools and act on anything that needs attention.";
+
+/**
+ * The SCHEDULE-trigger counterpart to dispatchInboundMessage. The cron
+ * sweep (app/api/cron/run-due-tasks) already knows exactly which workflow
+ * fired — there's no trigger+account lookup to do here, unlike a real
+ * inbound event — so this takes the workflow directly rather than looking
+ * one up itself.
+ *
+ * Runs at depth 0 through runAgentByExecutionMode, same as a real
+ * trigger: a scheduled fire is the root of its own run, never a hop
+ * inside an existing call chain (contrast dispatchToWorkflowById, which
+ * chat and a Task/Routine plan step use for exactly that nested case).
+ *
+ * `input` is synthetic — there's no real inbound message to classify,
+ * since nothing "arrived." workflow.scheduledPrompt stands in for it,
+ * repeating verbatim every firing; a SCHEDULE department's classifier is
+ * expected to *investigate* current state via its own granted read tools
+ * rather than purely categorize this fixed text, since the text itself
+ * never varies. `no_match` (nothing needed doing this firing) is a clean,
+ * expected outcome here, not an error — same as it already is for a real
+ * trigger.
+ */
+export async function dispatchScheduledWorkflow(
+  workflow: DispatchableWorkflow,
+  provider?: AIProvider,
+): Promise<DispatchResult> {
+  const input = workflow.scheduledPrompt ?? DEFAULT_SCHEDULED_PROMPT;
+
+  const selection = await selectHandler(workflow, input, provider);
+  if (!selection.ok) {
+    return { matched: false, reason: selection.reason };
+  }
+
+  const run = await runAgentByExecutionMode(
+    selection.handlerAgent,
+    input,
+    selection.resolvedProvider,
+  );
+
+  return {
+    matched: true,
+    agentId: selection.handlerAgent.id,
+    agentName: selection.handlerAgent.name,
+    run,
+  };
+}
+
 export type DispatchToWorkflowResult =
   | { matched: true; agentId: string; agentName: string; run: RunResult }
   | {

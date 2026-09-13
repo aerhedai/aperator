@@ -17,6 +17,8 @@ export async function createWorkflowAction(
   formData: FormData,
 ): Promise<WorkflowFormState> {
   const rawTriggerIntegrationId = formData.get("triggerIntegrationId");
+  const rawSchedulePreset = formData.get("schedulePreset");
+  const rawScheduledPrompt = formData.get("scheduledPrompt");
   const parsed = workflowInputSchema.safeParse({
     name: formData.get("name"),
     description: formData.get("description"),
@@ -25,6 +27,14 @@ export async function createWorkflowAction(
       typeof rawTriggerIntegrationId === "string" &&
       rawTriggerIntegrationId.length > 0
         ? rawTriggerIntegrationId
+        : null,
+    schedulePreset:
+      typeof rawSchedulePreset === "string" && rawSchedulePreset.length > 0
+        ? rawSchedulePreset
+        : null,
+    scheduledPrompt:
+      typeof rawScheduledPrompt === "string" && rawScheduledPrompt.length > 0
+        ? rawScheduledPrompt
         : null,
   });
   if (!parsed.success) {

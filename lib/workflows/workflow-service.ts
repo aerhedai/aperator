@@ -22,6 +22,9 @@ const TRIGGER_INTEGRATION_PROVIDERS: Record<WorkflowTriggerType, string[]> = {
   // ever created by installWorkflowTemplate) is reached by id, never by
   // an inbound account-bound event.
   MANUAL: [],
+  // Same reasoning as MANUAL — a scheduled fire comes from the cron
+  // sweep, never a specific connected account.
+  SCHEDULE: [],
 };
 const TRIGGERS_REQUIRING_ACCOUNT: WorkflowTriggerType[] = ["WEBHOOK"];
 
@@ -203,13 +206,22 @@ export async function activateWorkflow(
       "A workflow needs a classifier and at least one handler before it can be activated",
     );
   }
+  // Without this, the cron sweep's own `if (!workflow.schedulePreset)
+  // continue` would silently skip it forever — an ACTIVE department that
+  // never fires, with nothing in the UI saying why.
+  if (workflow.trigger === "SCHEDULE" && !workflow.schedulePreset) {
+    throw new Error(
+      "A SCHEDULE workflow needs a schedule preset before it can be activated",
+    );
+  }
 
-  // MANUAL workflows don't compete for a trigger slot — nothing ever
-  // dispatches to them by (trigger, account), only by id (invoke_workflow),
-  // so any number of them may be ACTIVE at once. Only EMAIL/WEBHOOK, where
-  // a real inbound event needs exactly one deterministic recipient, ever
-  // need the swap below.
-  if (workflow.trigger !== "MANUAL") {
+  // MANUAL and SCHEDULE workflows don't compete for a trigger slot —
+  // nothing ever dispatches to them by (trigger, account): MANUAL is
+  // reached by id (invoke_workflow), SCHEDULE wakes itself on its own
+  // preset via the cron sweep. Any number of either may be ACTIVE at
+  // once. Only EMAIL/WEBHOOK, where a real inbound event needs exactly
+  // one deterministic recipient, ever need the swap below.
+  if (workflow.trigger !== "MANUAL" && workflow.trigger !== "SCHEDULE") {
     await workflowRepository.deactivateOtherWorkflowsForTrigger(
       organisationId,
       workflow.trigger,

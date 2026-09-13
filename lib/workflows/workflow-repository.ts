@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import type {
+  TaskSchedulePreset,
   WorkflowAgentRole,
   WorkflowTriggerType,
 } from "@/lib/generated/prisma/client";
@@ -88,6 +89,8 @@ export function createWorkflow(
     description: string;
     trigger: WorkflowTriggerType;
     triggerIntegrationId?: string | null;
+    schedulePreset?: TaskSchedulePreset | null;
+    scheduledPrompt?: string | null;
   },
 ) {
   return prisma.workflow.create({
@@ -107,6 +110,29 @@ export function setWorkflowStatus(
 
 export function deleteWorkflow(organisationId: string, id: string) {
   return prisma.workflow.deleteMany({ where: { id, organisationId } });
+}
+
+// The cron sweep's own candidate list (app/api/cron/run-due-tasks) —
+// mirrors taskRepository.listActiveRoutines's shape, "due" itself is
+// checked in application code (isPresetDue) since it depends on comparing
+// each preset's cadence against that workflow's own lastScheduledFireAt,
+// not expressible as a single where clause across every preset shape.
+// Same members-with-agent include as findActiveWorkflowByTrigger, since
+// both feed the same selectHandler (lib/routing/dispatch.ts).
+export function findActiveScheduledWorkflows() {
+  return prisma.workflow.findMany({
+    where: { status: "ACTIVE", trigger: "SCHEDULE" },
+    include: { members: { include: { agent: true } } },
+  });
+}
+
+// Set at the start of a fire attempt, not on success — see
+// Workflow.lastScheduledFireAt's schema.prisma comment for why.
+export function markWorkflowScheduledFire(workflowId: string, firedAt: Date) {
+  return prisma.workflow.update({
+    where: { id: workflowId },
+    data: { lastScheduledFireAt: firedAt },
+  });
 }
 
 // Everything else already ACTIVE on this org+trigger+account, demoted to
