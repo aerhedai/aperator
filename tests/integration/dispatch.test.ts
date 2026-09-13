@@ -3,7 +3,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { AIProvider, AIResponse } from "@/lib/ai/provider";
 import { prisma } from "@/lib/db/prisma";
 import * as integrationService from "@/lib/integrations/integration-service";
-import { dispatchInboundMessage } from "@/lib/routing/dispatch";
+import {
+  dispatchInboundMessage,
+  dispatchScheduledWorkflow,
+} from "@/lib/routing/dispatch";
+import * as workflowRepository from "@/lib/workflows/workflow-repository";
 
 // Ollama isn't reachable from CI — classification and the handler's own
 // run both go through the same scripted provider here, proving the real
@@ -574,6 +578,129 @@ describe("dispatchInboundMessage", () => {
       await prisma.workflow.deleteMany({ where: { organisationId: orgId } });
       await prisma.agent.deleteMany({ where: { organisationId: orgId } });
       await prisma.integration.deleteMany({ where: { organisationId: orgId } });
+      await prisma.customEntityRecord.deleteMany({
+        where: { organisationId: orgId },
+      });
+      await prisma.customEntityType.deleteMany({
+        where: { organisationId: orgId },
+      });
+      await prisma.organisation.deleteMany({ where: { id: orgId } });
+    }
+  });
+});
+
+describe("dispatchScheduledWorkflow", () => {
+  it("uses scheduledPrompt as the synthetic input, and no_match is a clean outcome, not an error", async () => {
+    const orgId = "test-org-dispatch-scheduled";
+    await prisma.organisation.create({
+      data: { id: orgId, clerkOrgId: orgId, name: "Scheduled Dispatch Org" },
+    });
+    const classifier = await prisma.agent.create({
+      data: {
+        organisationId: orgId,
+        name: "Classifier",
+        description: "Decides what needs doing.",
+        instructions: "Decide which worker should handle this.",
+        model: "test-model",
+        status: "ACTIVE",
+      },
+    });
+    const handlerA = await prisma.agent.create({
+      data: {
+        organisationId: orgId,
+        name: "Handler A",
+        description: "Checks overdue invoices.",
+        instructions: "Check invoices.",
+        model: "test-model",
+        status: "ACTIVE",
+      },
+    });
+    const handlerB = await prisma.agent.create({
+      data: {
+        organisationId: orgId,
+        name: "Handler B",
+        description: "Checks low stock.",
+        instructions: "Check stock.",
+        model: "test-model",
+        status: "ACTIVE",
+      },
+    });
+    const workflow = await prisma.workflow.create({
+      data: {
+        organisationId: orgId,
+        name: "Scheduled Department",
+        description: "d",
+        trigger: "SCHEDULE",
+        status: "ACTIVE",
+        schedulePreset: "DAILY_9AM",
+        scheduledPrompt: "Check overdue invoices only.",
+      },
+    });
+    await prisma.workflowAgent.createMany({
+      data: [
+        { workflowId: workflow.id, agentId: classifier.id, role: "CLASSIFIER" },
+        { workflowId: workflow.id, agentId: handlerA.id, role: "HANDLER" },
+        { workflowId: workflow.id, agentId: handlerB.id, role: "HANDLER" },
+      ],
+    });
+
+    try {
+      const fetched = await workflowRepository.findActiveScheduledWorkflows();
+      const found = fetched.find((w) => w.id === workflow.id);
+      if (!found) throw new Error("expected to find the scheduled workflow");
+
+      // Captures every generateResponse call so the classification call can
+      // be checked for scheduledPrompt as its actual input — proving that's
+      // what fed the classifier, not some other fallback.
+      const calls: { messages: { role: string; content: string }[] }[] = [];
+      const inner = scriptedProvider([
+        { content: `{"agentId": "${handlerA.id}"}` },
+        { content: "Checked — nothing overdue." },
+      ]);
+      const capturingProvider: AIProvider = {
+        generateResponse: async (params) => {
+          calls.push(params);
+          return inner.generateResponse(params);
+        },
+      };
+
+      const matchedResult = await dispatchScheduledWorkflow(
+        found,
+        capturingProvider,
+      );
+      expect(matchedResult).toMatchObject({
+        matched: true,
+        agentId: handlerA.id,
+      });
+      const classifyCall = calls[0];
+      const userMessage = classifyCall?.messages.find((m) => m.role === "user");
+      expect(userMessage?.content).toBe("Check overdue invoices only.");
+
+      // A second firing where the classifier decides nothing needs
+      // doing: no_match, not a thrown error.
+      const noMatchResult = await dispatchScheduledWorkflow(
+        found,
+        scriptedProvider([{ content: '{"agentId": null}' }]),
+      );
+      expect(noMatchResult).toEqual({ matched: false, reason: "no_match" });
+    } finally {
+      const runs = await prisma.agentRun.findMany({
+        where: { organisationId: orgId },
+        select: { id: true },
+      });
+      const runIds = runs.map((r) => r.id);
+      await prisma.toolCall.deleteMany({
+        where: { agentRunId: { in: runIds } },
+      });
+      await prisma.runStep.deleteMany({
+        where: { agentRunId: { in: runIds } },
+      });
+      await prisma.agentRun.deleteMany({ where: { organisationId: orgId } });
+      await prisma.workflowAgent.deleteMany({
+        where: { workflowId: workflow.id },
+      });
+      await prisma.workflow.deleteMany({ where: { organisationId: orgId } });
+      await prisma.agent.deleteMany({ where: { organisationId: orgId } });
       await prisma.customEntityRecord.deleteMany({
         where: { organisationId: orgId },
       });

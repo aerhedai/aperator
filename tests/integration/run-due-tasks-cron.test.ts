@@ -150,15 +150,15 @@ describe("GET /api/cron/run-due-tasks", () => {
     expect(response.status).toBe(200);
 
     const body = (await response.json()) as {
-      checked: number;
-      fired: number;
-      results: { taskId: string; fired: boolean }[];
+      tasks: { results: { taskId: string; fired: boolean }[] };
     };
 
-    const dueResult = body.results.find((r) => r.taskId === dueRoutine.id);
+    const dueResult = body.tasks.results.find(
+      (r) => r.taskId === dueRoutine.id,
+    );
     expect(dueResult?.fired).toBe(true);
 
-    const pausedResult = body.results.find(
+    const pausedResult = body.tasks.results.find(
       (r) => r.taskId === pausedRoutine.id,
     );
     expect(pausedResult).toBeUndefined();
@@ -172,5 +172,134 @@ describe("GET /api/cron/run-due-tasks", () => {
       where: { taskId: pausedRoutine.id },
     });
     expect(pausedRuns).toBe(0);
+  });
+
+  it("fires an ACTIVE SCHEDULE workflow whose preset is due, dispatching through the same classify path a real trigger uses", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-14T09:00:00Z"));
+
+    const classifier = await prisma.agent.create({
+      data: {
+        organisationId,
+        name: "Scheduled Classifier",
+        description: "Decides what needs doing.",
+        instructions: "Decide which worker should handle this.",
+        model: "test-model",
+        status: "ACTIVE",
+      },
+    });
+    const handler = await prisma.agent.create({
+      data: {
+        organisationId,
+        name: "Scheduled Handler",
+        description: "Does the actual check.",
+        instructions: "Check state and act.",
+        model: "test-model",
+        status: "ACTIVE",
+      },
+    });
+    const workflow = await prisma.workflow.create({
+      data: {
+        organisationId,
+        name: "Scheduled Department",
+        description: "Checks something daily.",
+        trigger: "SCHEDULE",
+        status: "ACTIVE",
+        schedulePreset: "DAILY_9AM",
+      },
+    });
+    await prisma.workflowAgent.createMany({
+      data: [
+        { workflowId: workflow.id, agentId: classifier.id, role: "CLASSIFIER" },
+        { workflowId: workflow.id, agentId: handler.id, role: "HANDLER" },
+      ],
+    });
+
+    try {
+      const request = new Request("http://localhost/api/cron/run-due-tasks");
+      const response = await GET(request);
+      expect(response.status).toBe(200);
+
+      const body = (await response.json()) as {
+        workflows: {
+          results: { workflowId: string; fired: boolean; matched?: boolean }[];
+        };
+      };
+      const result = body.workflows.results.find(
+        (r) => r.workflowId === workflow.id,
+      );
+      expect(result).toMatchObject({ fired: true, matched: true });
+
+      const updated = await prisma.workflow.findUniqueOrThrow({
+        where: { id: workflow.id },
+      });
+      expect(updated.lastScheduledFireAt).not.toBeNull();
+    } finally {
+      await prisma.workflowAgent.deleteMany({
+        where: { workflowId: workflow.id },
+      });
+      await prisma.workflow.deleteMany({ where: { id: workflow.id } });
+    }
+  });
+
+  it("does not re-fire a SCHEDULE workflow already fired today", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-14T09:00:00Z"));
+
+    const classifier = await prisma.agent.create({
+      data: {
+        organisationId,
+        name: "Already Fired Classifier",
+        description: "Decides what needs doing.",
+        instructions: "Decide which worker should handle this.",
+        model: "test-model",
+        status: "ACTIVE",
+      },
+    });
+    const handler = await prisma.agent.create({
+      data: {
+        organisationId,
+        name: "Already Fired Handler",
+        description: "Does the actual check.",
+        instructions: "Check state and act.",
+        model: "test-model",
+        status: "ACTIVE",
+      },
+    });
+    const workflow = await prisma.workflow.create({
+      data: {
+        organisationId,
+        name: "Already Fired Department",
+        description: "Checks something daily.",
+        trigger: "SCHEDULE",
+        status: "ACTIVE",
+        schedulePreset: "DAILY_9AM",
+        lastScheduledFireAt: new Date("2026-09-14T09:00:00Z"),
+      },
+    });
+    await prisma.workflowAgent.createMany({
+      data: [
+        { workflowId: workflow.id, agentId: classifier.id, role: "CLASSIFIER" },
+        { workflowId: workflow.id, agentId: handler.id, role: "HANDLER" },
+      ],
+    });
+
+    try {
+      const request = new Request("http://localhost/api/cron/run-due-tasks");
+      const response = await GET(request);
+
+      const body = (await response.json()) as {
+        workflows: { results: { workflowId: string; fired: boolean }[] };
+      };
+      const result = body.workflows.results.find(
+        (r) => r.workflowId === workflow.id,
+      );
+      expect(result).toEqual({ workflowId: workflow.id, fired: false });
+    } finally {
+      await prisma.workflowAgent.deleteMany({
+        where: { workflowId: workflow.id },
+      });
+      await prisma.workflow.deleteMany({ where: { id: workflow.id } });
+    }
   });
 });
