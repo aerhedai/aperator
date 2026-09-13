@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import type { AgentFormState } from "@/app/(shell)/(app)/agents/actions";
 import type { Agent } from "@/lib/generated/prisma/client";
+import { buildApiToolName } from "@/lib/integrations/api/tool-naming";
 import {
   buildMcpToolName,
   type DiscoveredMcpTool,
@@ -184,6 +185,7 @@ export function AgentForm({
   gmailIntegrations = [],
   connectedIntegrations = [],
   mcpConnections = [],
+  apiConnections = [],
   initialStepsConfig,
   preselectedTemplate,
 }: {
@@ -209,6 +211,11 @@ export function AgentForm({
     label: string;
     tools: DiscoveredMcpTool[];
   }[];
+  // This organisation's connected "Custom API" connections — one call_api
+  // grant per connection, no discovery step (unlike mcpConnections above,
+  // there's exactly one fixed capability per connection, not a variable
+  // list of remote tools).
+  apiConnections?: { id: string; label: string }[];
   // The agent's existing step programme when editing. Raw rather than
   // typed: it round-trips through the JSON editor and is validated
   // server-side against the same schema the runtime uses.
@@ -603,6 +610,35 @@ export function AgentForm({
                     })}
                   </div>
                 ))}
+                {(apiConnections ?? []).map((connection) => {
+                  const fullName = buildApiToolName(connection.id);
+                  return (
+                    <label
+                      key={fullName}
+                      className="flex items-start gap-2 text-sm"
+                      htmlFor={`tool-${fullName}`}
+                    >
+                      <input
+                        type="checkbox"
+                        id={`tool-${fullName}`}
+                        name="toolNames"
+                        value={fullName}
+                        checked={toolNames.has(fullName)}
+                        onChange={(e) => toggleTool(fullName, e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-border"
+                      />
+                      <span className="flex flex-col">
+                        <span className="font-medium">
+                          Call {connection.label}
+                        </span>
+                        <span className="text-muted-foreground">
+                          GET reads freely; POST/PUT/PATCH/DELETE always need
+                          approval first.
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
               <p className="text-xs text-muted-foreground">
                 A tool call this worker isn&rsquo;t granted here is refused at

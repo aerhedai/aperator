@@ -75,6 +75,13 @@ export const INTEGRATION_REGISTRY = [
       "Connect any external system's own MCP server by URL and bearer token — every tool it exposes becomes grantable to your agents, no code required.",
     connectionMode: "manual",
   },
+  {
+    provider: "api",
+    label: "Custom API",
+    description:
+      "Connect any system's own HTTP API by base URL and bearer token — grants a single call_api tool scoped to just this connection, for systems with no MCP server of their own.",
+    connectionMode: "manual",
+  },
 ] as const;
 
 export type IntegrationProviderName =

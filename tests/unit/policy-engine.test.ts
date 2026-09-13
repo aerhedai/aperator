@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { buildApiToolName } from "@/lib/integrations/api/tool-naming";
 import * as integrationService from "@/lib/integrations/integration-service";
 import { buildMcpToolName } from "@/lib/integrations/mcp/tool-naming";
 import {
@@ -140,6 +141,35 @@ describe("requiresApprovalBeforeExecution", () => {
         buildMcpToolName("gone", "whatever"),
         ORG_ID,
       ),
+    ).toBe(true);
+  });
+
+  it("does not require approval for a call_api GET or HEAD, regardless of which connection", async () => {
+    const toolName = buildApiToolName("int1");
+    expect(
+      await requiresApprovalBeforeExecution(toolName, ORG_ID, {
+        method: "GET",
+      }),
+    ).toBe(false);
+    expect(
+      await requiresApprovalBeforeExecution(toolName, ORG_ID, {
+        method: "HEAD",
+      }),
+    ).toBe(false);
+  });
+
+  it("requires approval for a call_api POST/PUT/PATCH/DELETE — the consequence is unknowable in advance, so there's no exception yet", async () => {
+    const toolName = buildApiToolName("int1");
+    for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+      expect(
+        await requiresApprovalBeforeExecution(toolName, ORG_ID, { method }),
+      ).toBe(true);
+    }
+  });
+
+  it("requires approval for call_api when no method is supplied at all (fail safe)", async () => {
+    expect(
+      await requiresApprovalBeforeExecution(buildApiToolName("int1"), ORG_ID),
     ).toBe(true);
   });
 });

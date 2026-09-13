@@ -25,6 +25,7 @@ const WEBHOOK_PROVIDER = "webhook";
 const GOOGLE_DRIVE_PROVIDER = "google-drive";
 const SHAREPOINT_PROVIDER = "sharepoint";
 export const MCP_PROVIDER = "mcp";
+export const API_PROVIDER = "api";
 
 interface AccessRefreshCredentials {
   accessToken: string;
@@ -625,6 +626,81 @@ export async function connectMcpServer(
       credentials: { token: input.token },
     },
   );
+}
+
+/**
+ * Connects a generic "Custom API" account — no live validation call like
+ * connectMcpServer's listTools() (there's no discovery step to prove the
+ * connection with; call_api's first real call *is* the test). baseUrl is
+ * normalized to always end with "/" so call-api.ts's relative `new URL()`
+ * join is unambiguous — see that file's own comment on why a leading slash
+ * on the tool's own `path` argument is stripped before joining.
+ *
+ * Same duplicate-label guard as connectMcpServer, for the same reason:
+ * `label` here is free text with no external identity behind it, so
+ * reusing an existing one would silently repoint every agent already
+ * granted this connection's call_api tool at a different host and
+ * credential.
+ */
+export async function connectApiConnection(
+  organisationId: string,
+  input: { label: string; baseUrl: string; token: string },
+) {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(input.baseUrl);
+  } catch {
+    throw new Error("Base URL must be a valid absolute URL.");
+  }
+  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+    throw new Error("Base URL must use http or https.");
+  }
+
+  const existing = await integrationRepository.findIntegrationsByProvider(
+    organisationId,
+    API_PROVIDER,
+  );
+  if (existing.some((integration) => integration.name === input.label)) {
+    throw new Error(
+      `A connection named "${input.label}" already exists — disconnect it first or use a different label.`,
+    );
+  }
+
+  const normalizedBaseUrl = input.baseUrl.endsWith("/")
+    ? input.baseUrl
+    : `${input.baseUrl}/`;
+
+  return integrationRepository.upsertIntegration(
+    organisationId,
+    API_PROVIDER,
+    input.label,
+    {
+      config: { baseUrl: normalizedBaseUrl },
+      credentials: { token: input.token },
+    },
+  );
+}
+
+/**
+ * Resolves a connected API integration to what call-api.ts needs to
+ * actually make the request — null for not-found, disconnected, or
+ * belonging to a different provider (e.g. a stale grant referencing a
+ * since-deleted connection), so the caller can fail the tool call cleanly
+ * rather than throwing.
+ */
+export async function findApiConnection(
+  organisationId: string,
+  integrationId: string,
+): Promise<{ label: string; baseUrl: string; token: string } | null> {
+  const integration = await integrationRepository.findIntegrationById(
+    organisationId,
+    integrationId,
+  );
+  if (!integration || integration.provider !== API_PROVIDER) return null;
+  const config = integration.config as { baseUrl?: string };
+  const token = (integration.credentials as { token?: string } | null)?.token;
+  if (!config.baseUrl || !token) return null;
+  return { label: integration.name, baseUrl: config.baseUrl, token };
 }
 
 export async function refreshMcpServerTools(

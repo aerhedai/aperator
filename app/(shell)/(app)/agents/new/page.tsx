@@ -12,13 +12,19 @@ export default async function NewAgentPage({
 }: PageProps<"/agents/new">) {
   const { template: templateId } = await searchParams;
   const organisation = await getCurrentOrganisation();
-  const [templates, gmailIntegrations, mcpIntegrations, allIntegrations] =
-    await Promise.all([
-      templateService.listTemplates(organisation.id),
-      integrationService.listIntegrationsByProvider(organisation.id, "gmail"),
-      integrationService.listIntegrationsByProvider(organisation.id, "mcp"),
-      integrationService.listIntegrations(organisation.id),
-    ]);
+  const [
+    templates,
+    gmailIntegrations,
+    mcpIntegrations,
+    apiIntegrations,
+    allIntegrations,
+  ] = await Promise.all([
+    templateService.listTemplates(organisation.id),
+    integrationService.listIntegrationsByProvider(organisation.id, "gmail"),
+    integrationService.listIntegrationsByProvider(organisation.id, "mcp"),
+    integrationService.listIntegrationsByProvider(organisation.id, "api"),
+    integrationService.listIntegrations(organisation.id),
+  ]);
 
   // Arriving from the standalone /templates page with a template already
   // chosen (?template=<id>) — resolved against this organisation's own
@@ -36,12 +42,21 @@ export default async function NewAgentPage({
     tools: (integration.config as { tools?: DiscoveredMcpTool[] }).tools ?? [],
   }));
 
+  const apiConnections = apiIntegrations.map((integration) => ({
+    id: integration.id,
+    label: integration.name,
+  }));
+
   // Scope-based tool availability (docs/provider-specific-tools-design.md)
   // needs every connected account's provider and granted scopes, not just
-  // Gmail's — mcp connections are excluded since their tools are handled
-  // entirely separately, via mcpConnections above.
+  // Gmail's — mcp and api connections are excluded since their tools are
+  // handled entirely separately, via mcpConnections/apiConnections above.
   const connectedIntegrations = allIntegrations
-    .filter((i) => i.provider !== integrationService.MCP_PROVIDER)
+    .filter(
+      (i) =>
+        i.provider !== integrationService.MCP_PROVIDER &&
+        i.provider !== integrationService.API_PROVIDER,
+    )
     .map((i) => ({
       provider: i.provider,
       grantedScopes:
@@ -62,6 +77,7 @@ export default async function NewAgentPage({
         }))}
         connectedIntegrations={connectedIntegrations}
         mcpConnections={mcpConnections}
+        apiConnections={apiConnections}
       />
     </div>
   );
