@@ -73,18 +73,16 @@ function fromOpenRouterToolCalls(
 
 /**
  * OpenRouter's chat completions API — OpenAI-compatible, confirmed against
- * OpenRouter's own docs. Deliberately no separate mapping module the way
- * Gemini needed one: AIMessage's shape (role/content, toolCalls with
- * id/name/arguments, tool role with toolCallId) already corresponds almost
- * field-for-field with OpenAI's, unlike Gemini's genuinely different wire
- * format. The one real difference from Ollama's own near-identical shape:
- * tool call arguments travel as a JSON *string* in both directions here,
- * not an object — get that backwards and every tool call silently breaks.
+ * OpenRouter's own docs. No separate mapping module needed: AIMessage's
+ * shape (role/content, toolCalls with id/name/arguments, tool role with
+ * toolCallId) already corresponds almost field-for-field with OpenAI's.
+ * The one real difference from Ollama's own near-identical shape: tool
+ * call arguments travel as a JSON *string* in both directions here, not an
+ * object — get that backwards and every tool call silently breaks.
  *
  * No generateEmbedding: OpenRouter is a chat-completions gateway, not an
- * embeddings provider for the models routed through it. Same reasoning as
- * GeminiProvider — AIProvider already treats this as optional for exactly
- * this situation.
+ * embeddings provider for the models routed through it — AIProvider
+ * already treats this as optional for exactly this situation.
  */
 export class OpenRouterProvider implements AIProvider {
   constructor(private readonly apiKey: string) {}

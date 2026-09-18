@@ -84,43 +84,51 @@ dimensionality, and silently mismatching that would corrupt retrieval
 rather than fail loudly, so it was left out entirely rather than guessed
 at.
 
-The consequence is bigger than "no Gemini embeddings" — there is exactly
-one _active_ provider per organisation, used for every call including
-embeddings, not a per-capability choice. Switching active to Gemini breaks
-`search_knowledge` and every `retrieve` step outright (both call
-`knowledgeService.search` with its default `"hybrid"` strategy, which
-always embeds the query) — it fails loudly with `EmbeddingUnavailableError`,
-never silently, but an "Answer from your documented knowledge" agent stops
-working the moment Gemini becomes active, not just embeddings generation
-in the abstract. Only `strategy: "keyword"` search is unaffected, and
-nothing in the product surfaces that as a fallback today. Switch back to
-Ollama to restore knowledge search, same as before switching.
+The consequence was bigger than "no Gemini embeddings" — there was
+exactly one _active_ provider per organisation, used for every call
+including embeddings, not a per-capability choice. Switching active to
+Gemini broke `search_knowledge` and every `retrieve` step outright (both
+call `knowledgeService.search` with its default `"hybrid"` strategy,
+which always embeds the query) — it failed loudly with
+`EmbeddingUnavailableError`, never silently, but an "Answer from your
+documented knowledge" agent stopped working the moment Gemini became
+active, not just embeddings generation in the abstract.
 
-## OpenRouter as a third AI provider (closed)
+**Removed entirely (2026-09-07).** Not deprecated or hidden — the
+`GeminiProvider` class, its message-mapping helper, the Settings UI
+section, and every branch of `organisation-ai-provider.ts` that knew
+about it are gone, along with the tests that covered it. No organisation
+was connected to or actively using it at removal time (checked directly).
+Kept as history here rather than deleted outright, since the incident
+that motivated adding it in the first place — and the reasoning that went
+into the embeddings gap above — are still worth knowing if a similar
+gap-filling provider gets added again later.
 
-Added for the same reason as Gemini: another provider an organisation can
-connect independently, this time to reach hosted models Ollama/Gemini
-don't offer (tested live against `upstage/solar-pro4`). Follows the exact
-Gemini pattern — `lib/ai/providers/openrouter-provider.ts`,
-`Organisation.activeAiProvider` gains a third value, all three can stay
-connected at once, `resolveActiveProviderKind()` checks Gemini then
-OpenRouter then defaults to Ollama.
+## OpenRouter as a second AI provider (closed)
 
-Wire format is OpenAI-compatible `chat/completions`, closer to this
-codebase's own `AIMessage` shape than Gemini's — the one real gotcha is
-that tool call `arguments` travel as a **JSON string** in both directions
-(the opposite of Ollama's object-based convention), parsed back with a
-fallback to `{}` on malformed JSON rather than crashing a run. No
-`generateEmbedding`, same reasoning as Gemini: nothing here forces a
-specific embedding dimensionality, but adding one without pinning it to
-the existing `vector(768)` column would risk silently corrupting
-retrieval rather than failing loudly, so it's left unimplemented instead
-of guessed at.
+Added for the same reason Gemini originally was: another provider an
+organisation can connect independently, to reach hosted models without
+depending on the home Ollama host being up (tested live against
+`upstage/solar-pro4`). Follows the same shape Ollama's own connection
+already established — `lib/ai/providers/openrouter-provider.ts`,
+`Organisation.activeAiProvider` gains a second value, both can stay
+connected at once, `resolveActiveProviderKind()` checks OpenRouter then
+defaults to Ollama.
 
-**Known gap, same as Gemini's:** switching active provider doesn't touch
-existing agents' `Model` field — an agent still set to an Ollama or
-Gemini model name fails every run until manually updated to an
-OpenRouter model id.
+Wire format is OpenAI-compatible `chat/completions` — the one real gotcha
+is that tool call `arguments` travel as a **JSON string** in both
+directions (the opposite of Ollama's object-based convention), parsed
+back with a fallback to `{}` on malformed JSON rather than crashing a
+run. No `generateEmbedding`: nothing here forces a specific embedding
+dimensionality, but adding one without pinning it to the existing
+`vector(768)` column would risk silently corrupting retrieval rather than
+failing loudly, so it's left unimplemented instead of guessed at (the
+same reasoning Gemini's own missing embeddings support was left on, see
+above).
+
+**Known gap:** switching active provider doesn't touch existing agents'
+`Model` field — an agent still set to an Ollama model name fails every
+run until manually updated to an OpenRouter model id.
 
 ## Gmail OAuth tokens encrypted at rest (Phase B — closed)
 

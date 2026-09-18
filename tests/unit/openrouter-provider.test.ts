@@ -134,9 +134,8 @@ describe("OpenRouterProvider", () => {
       ],
     });
 
-    // The real id OpenRouter returned is used as-is — unlike Ollama and
-    // Gemini, which never return one and need an index-based id
-    // synthesized instead.
+    // The real id OpenRouter returned is used as-is — unlike Ollama, which
+    // never returns one and needs an index-based id synthesized instead.
     expect(result.toolCalls).toEqual([
       {
         id: "call_real_id",

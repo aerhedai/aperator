@@ -77,7 +77,7 @@ Database:     Neon Postgres          (`main` branch = production)
 Auth:         Clerk Production instance, multi-tenant via Clerk Orgs
 AI:           Per-organisation choice of Ollama (via an auth-gated
                                      Tailscale proxy — still a documented stopgap)
-                                     or Gemini (hosted). Ollama remains the
+                                     or OpenRouter (hosted). Ollama remains the
                                      implicit default for every org that
                                      predates this choice.
 ```
@@ -529,15 +529,19 @@ A fuller redesign of agent creation (steps as data, replacing the fixed
 
 Model providers sit behind `AIProvider` (`lib/ai/`). Ollama, reached in
 production through an auth-gated proxy — a documented stopgap, not the
-final answer — and Gemini, a hosted commercial API, are both real
+final answer — and OpenRouter, a hosted commercial API, are both real
 implementations now, each an organisation connects independently in
 Settings → AI Provider and switches between without losing the other's
-credentials. Confirms the abstraction was right: adding Gemini was one new
-class plus a translation layer for its wire format
-(`lib/ai/providers/gemini-message-mapping.ts`), nothing above `AIProvider`
-changed. Never scatter provider-specific SDK calls through the
-application — both providers talk to their APIs over plain `fetch`, no
-SDK dependency.
+credentials. Confirms the abstraction was right: adding OpenRouter was one
+new class, nothing above `AIProvider` changed. Never scatter
+provider-specific SDK calls through the application — both providers talk
+to their APIs over plain `fetch`, no SDK dependency.
+
+Gemini was a third implementation, briefly real, then removed entirely
+(not just hidden) once it was no longer wanted — the same "resolve once
+via the abstraction, not scattered through the app" design is exactly what
+made that a clean deletion: one class, one settings-form section, one
+branch in the resolver, gone.
 
 ## Development
 

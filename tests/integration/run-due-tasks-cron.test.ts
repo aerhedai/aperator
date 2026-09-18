@@ -17,7 +17,7 @@ import * as taskRepository from "@/lib/tasks/task-repository";
 // isPresetDue/runTaskPlan in isolation) so the wiring between "find due
 // routines" and "execute them" is covered too.
 //
-// getAIProvider is mocked rather than given a real Ollama/Gemini
+// getAIProvider is mocked rather than given a real Ollama/OpenRouter
 // Integration fixture: the route resolves it itself (not injectable the
 // way runTaskPlan's own `provider` parameter is), and a real one would
 // mean this test making an actual network call to an LLM.
