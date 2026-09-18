@@ -304,28 +304,6 @@ export async function saveOllamaProviderAction(
   return { saved: true };
 }
 
-export async function saveGeminiProviderAction(
-  _prevState: AIProviderFormState,
-  formData: FormData,
-): Promise<AIProviderFormState> {
-  const apiKeyRaw = formData.get("apiKey");
-  const apiKey =
-    typeof apiKeyRaw === "string" && apiKeyRaw.trim().length > 0
-      ? apiKeyRaw.trim()
-      : undefined;
-
-  const organisation = await getCurrentOrganisation();
-  try {
-    await aiProviderService.setGeminiProvider(organisation.id, { apiKey });
-  } catch (error) {
-    return {
-      error: error instanceof Error ? error.message : "Couldn't save this.",
-    };
-  }
-  revalidatePath("/settings/ai-provider");
-  return { saved: true };
-}
-
 export async function saveOpenRouterProviderAction(
   _prevState: AIProviderFormState,
   formData: FormData,

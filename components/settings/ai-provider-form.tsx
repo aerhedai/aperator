@@ -5,7 +5,6 @@ import { useFormStatus } from "react-dom";
 
 import {
   disconnectProviderAction,
-  saveGeminiProviderAction,
   saveOllamaProviderAction,
   saveOpenRouterProviderAction,
   setActiveProviderAction,
@@ -56,9 +55,9 @@ function ActiveBadge() {
 
 /**
  * One provider's connect/disconnect/activate controls. `fields` renders
- * whatever that provider needs (Ollama: base URL + proxy secret; Gemini:
- * an API key) — the surrounding connected/active chrome is identical for
- * both, so it isn't duplicated per provider.
+ * whatever that provider needs (Ollama: base URL + proxy secret;
+ * OpenRouter: an API key) — the surrounding connected/active chrome is
+ * identical for both, so it isn't duplicated per provider.
  */
 function ProviderCard({
   title,
@@ -191,37 +190,6 @@ export function AIProviderForm({ status }: { status: AIProviderStatus }) {
               </p>
             </div>
           </>
-        }
-      />
-
-      <ProviderCard
-        title="Gemini"
-        description="Google's hosted API. No machine to keep running — a run here doesn't depend on anything at your end being online. Does not support Knowledge search: while Gemini is active, search_knowledge and any Retrieve step fail outright, not silently — switch back to Ollama to restore them."
-        kind="gemini"
-        connectedAt={status.gemini?.connectedAt ?? null}
-        isActive={status.active === "gemini"}
-        saveAction={saveGeminiProviderAction}
-        fields={
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="gemini-apiKey">API key</Label>
-            <Input
-              id="gemini-apiKey"
-              name="apiKey"
-              type="password"
-              placeholder={
-                status.gemini ? "Unchanged — leave blank to keep it" : ""
-              }
-              autoComplete="off"
-              required={!status.gemini}
-            />
-            <p className="text-xs text-muted-foreground">
-              From <span className="font-mono">aistudio.google.com/apikey</span>
-              . Set each agent&rsquo;s Model field to a Gemini model name (e.g.{" "}
-              <span className="font-mono">gemini-2.5-flash-lite</span>) before
-              making this active — an agent still set to an Ollama model name
-              will fail every run against Gemini.
-            </p>
-          </div>
         }
       />
 
